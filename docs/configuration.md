@@ -16,11 +16,14 @@ no interactive wizard at boot (wizards block health checks and orchestrated depl
 
 ```bash
 docker compose up -d
-./mvnw spring-boot:run -Dspring-boot.run.profiles=test
+./mvnw spring-boot:run
 ```
 
-`application-test.yml` points at the Compose Postgres/Redis defaults
+`application-local.yml` / `application-test.yml` point at Compose Postgres/Redis
 (`finledger` / `finledger` on localhost). Those credentials are **dev-only**.
+
+If Flyway reports a checksum mismatch after a migration file was edited, recreate
+the local volume: `docker compose down -v && docker compose up -d`.
 
 ### External config file (optional)
 
