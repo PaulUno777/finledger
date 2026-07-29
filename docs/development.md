@@ -29,8 +29,8 @@ PRs are human-owned (agents do not open them unless asked).
 
 | Ticket | Phase | Branch slug | Status |
 |--------|-------|-------------|--------|
-| FL-010 | Domain core | `feature/FL-010-domain-core` | done (pending merge) |
-| FL-020 | Persistence + Flyway | `feature/FL-020-persistence` | pending |
+| FL-010 | Domain core | `feature/FL-010-domain-core` | done |
+| FL-020 | Persistence + Flyway | `feature/FL-020-persistence` | done (pending merge) |
 | FL-030 | PostTransaction + API idempotency | `feature/FL-030-post-transaction` | pending |
 | FL-040 | Transactional outbox | `feature/FL-040-outbox` | pending |
 | FL-050 | Multi-tenant + RLS | `feature/FL-050-multi-tenant-rls` | pending |

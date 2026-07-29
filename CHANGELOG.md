@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Persistence (FL-020): Flyway ledger schema, JPA adapters for accounts/journal/balances
 - Domain core (FL-010): Money, LedgerAccount, JournalEntry, Posting, DoubleEntryValidator, BalanceCalculator
 - Open-source project scaffolding (LICENSE, README, contributing docs, ADRs)
 - GitHub Actions CI workflow for `develop`
