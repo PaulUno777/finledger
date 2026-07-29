@@ -39,3 +39,6 @@ build/
 logs/
 # graphify knowledge graph (local)
 graphify-out/
+
+# jqwik local sample database
+.jqwik-database
