@@ -12,6 +12,7 @@ import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest
 @Testcontainers
+@SuppressWarnings("resource") // containers closed by Testcontainers @Container / Ryuk
 class FinledgerApplicationTests {
 
 	@Container
