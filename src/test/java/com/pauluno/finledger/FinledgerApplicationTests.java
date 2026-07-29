@@ -36,6 +36,7 @@ class FinledgerApplicationTests {
 		registry.add("spring.flyway.enabled", () -> "true");
 		registry.add("spring.data.redis.host", REDIS::getHost);
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
+		registry.add("finledger.outbox.poll-interval-ms", () -> "3600000");
 		registry.add("spring.autoconfigure.exclude",
 				() -> "org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration");
 	}
