@@ -1,3 +1,7 @@
+# Production profile — supply secrets via environment / secret store only.
+# Never commit real credentials. Prefer SPRING_DATASOURCE_* / SPRING_DATA_REDIS_*
+# when aligning with Spring relaxed binding.
+
 spring:
 
   datasource:

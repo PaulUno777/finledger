@@ -1,3 +1,11 @@
+# Local stack for FinLedger (Postgres + Redis).
+# App config layers: image/defaults → optional file mount → env vars.
+# To override Spring config from the host:
+#   mkdir -p ./config && edit ./config/application.yml
+#   then run the app with SPRING_CONFIG_ADDITIONAL_LOCATION=optional:file:./config/
+#
+# Dev credentials below are for local evaluation only — never reuse in production.
+
 services:
 
   postgres:
