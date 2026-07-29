@@ -66,9 +66,33 @@ Details: [docs/configuration.md](docs/configuration.md)
 
 ## API
 
-OpenAPI UI is available when the app is running (springdoc). Mutating endpoints will
-require an `Idempotency-Key` header once the PostTransaction use case lands (roadmap
-phase FL-030).
+OpenAPI UI is available when the app is running (springdoc).
+
+Posting a journal entry requires an `Idempotency-Key` header. Same key + same body
+replays the stored response; same key + different body returns `409`.
+
+```bash
+# Create two accounts, then post a same-currency transfer
+TENANT=00000000-0000-0000-0000-000000000001
+
+curl -s -X POST "http://localhost:8080/api/v1/tenants/$TENANT/accounts" \
+  -H 'Content-Type: application/json' \
+  -d '{"ownerRef":"merchant-a","currencyCode":"USD","type":"MERCHANT_WALLET","allowsOverdraft":true}'
+
+curl -s -X POST "http://localhost:8080/api/v1/tenants/$TENANT/journal-entries" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: demo-transfer-1' \
+  -d '{
+    "transactionReference": "tx-1",
+    "postings": [
+      {"accountId":"<FROM_ID>","amount":"-10.00","currencyCode":"USD","settlementStatus":"SETTLED"},
+      {"accountId":"<TO_ID>","amount":"10.00","currencyCode":"USD","settlementStatus":"SETTLED"}
+    ]
+  }'
+```
+
+FL-030 note: posting currency must match each account’s currency (no FX conversion yet).
+Auth is temporarily open (`permitAll`) until FL-100.
 
 ## Guarantees (target)
 
@@ -100,8 +124,8 @@ Do not modify domain validators to “support” a vendor.
 
 ## Status
 
-**v0.x — early foundation.** Track A (docs/OSS/CI/config) is in progress. Domain core and
-posting APIs follow the roadmap in [docs/development.md](docs/development.md).
+**v0.x — early foundation.** Track A done. Domain (FL-010), persistence (FL-020), and
+PostTransaction API (FL-030) are on the roadmap in [docs/development.md](docs/development.md).
 
 Docker Hub image badges and GitHub Release badges will appear after CI/CD phase FL-140.
 
