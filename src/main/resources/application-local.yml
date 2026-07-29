@@ -1,0 +1,21 @@
+# Dev-only profile for local IDE / swagger runs against docker-compose.
+# Credentials are local evaluation only — never reuse in production.
+
+spring:
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/finledger
+    username: finledger
+    password: finledger
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
