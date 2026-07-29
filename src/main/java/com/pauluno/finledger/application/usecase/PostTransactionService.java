@@ -18,8 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.pauluno.finledger.application.dto.PostTransactionCommand;
 import com.pauluno.finledger.application.dto.PostTransactionResult;
+import com.pauluno.finledger.application.event.TransactionPosted;
 import com.pauluno.finledger.application.exception.BusinessRuleException;
 import com.pauluno.finledger.application.exception.ResourceNotFoundException;
 import com.pauluno.finledger.application.port.in.PostTransactionUseCase;
@@ -27,6 +29,7 @@ import com.pauluno.finledger.application.port.out.AccountBalanceRepository;
 import com.pauluno.finledger.application.port.out.IdempotencyStore;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
+import com.pauluno.finledger.application.port.out.OutboxWriter;
 import com.pauluno.finledger.domain.exception.AccountClosedException;
 import com.pauluno.finledger.domain.exception.CurrencyMismatchException;
 import com.pauluno.finledger.domain.exception.InsufficientFundsException;
@@ -49,19 +52,24 @@ public class PostTransactionService implements PostTransactionUseCase {
     private final LedgerAccountRepository ledgerAccountRepository;
     private final AccountBalanceRepository accountBalanceRepository;
     private final JournalEntryRepository journalEntryRepository;
+    private final OutboxWriter outboxWriter;
     private final ObjectMapper objectMapper;
 
     public PostTransactionService(
             IdempotencyStore idempotencyStore,
             LedgerAccountRepository ledgerAccountRepository,
             AccountBalanceRepository accountBalanceRepository,
-            JournalEntryRepository journalEntryRepository
+            JournalEntryRepository journalEntryRepository,
+            OutboxWriter outboxWriter
     ) {
         this.idempotencyStore = idempotencyStore;
         this.ledgerAccountRepository = ledgerAccountRepository;
         this.accountBalanceRepository = accountBalanceRepository;
         this.journalEntryRepository = journalEntryRepository;
+        this.outboxWriter = outboxWriter;
         this.objectMapper = new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
     }
 
@@ -142,12 +150,41 @@ public class PostTransactionService implements PostTransactionUseCase {
             );
 
             JournalEntry saved = journalEntryRepository.save(entry);
+            appendOutbox(saved);
             return toResult(saved, false);
         } catch (InvalidJournalEntryException
                  | CurrencyMismatchException
                  | InsufficientFundsException
                  | AccountClosedException ex) {
             throw new BusinessRuleException(toCode(ex), ex.getMessage(), ex);
+        }
+    }
+
+    private void appendOutbox(JournalEntry saved) {
+        TransactionPosted event = new TransactionPosted(
+                saved.tenantId(),
+                saved.id(),
+                saved.transactionReference().value(),
+                saved.type().name(),
+                saved.postings().stream()
+                        .map(p -> new TransactionPosted.PostingSummary(
+                                p.accountId(),
+                                p.amount().amount().toPlainString(),
+                                p.amount().currency().getCurrencyCode(),
+                                p.settlementStatus().name()
+                        ))
+                        .toList(),
+                saved.occurredAt()
+        );
+        try {
+            outboxWriter.append(new OutboxWriter.OutboxMessage(
+                    saved.tenantId(),
+                    saved.id(),
+                    TransactionPosted.EVENT_TYPE,
+                    objectMapper.writeValueAsString(event)
+            ));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize TransactionPosted outbox payload", e);
         }
     }
 

@@ -22,6 +22,8 @@ import com.pauluno.finledger.application.port.out.AccountBalanceRepository;
 import com.pauluno.finledger.application.port.out.IdempotencyStore;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
+import com.pauluno.finledger.application.port.out.OutboxWriter;
+import com.pauluno.finledger.application.event.TransactionPosted;
 import com.pauluno.finledger.domain.model.AccountBalance;
 import com.pauluno.finledger.domain.model.AccountStatus;
 import com.pauluno.finledger.domain.model.AccountType;
@@ -40,6 +42,7 @@ class PostTransactionServiceTest {
     private InMemoryLedgerAccountRepository accountRepository;
     private InMemoryAccountBalanceRepository balanceRepository;
     private InMemoryJournalEntryRepository journalEntryRepository;
+    private InMemoryOutboxWriter outboxWriter;
     private PostTransactionService service;
 
     private UUID tenantId;
@@ -52,11 +55,13 @@ class PostTransactionServiceTest {
         accountRepository = new InMemoryLedgerAccountRepository();
         balanceRepository = new InMemoryAccountBalanceRepository();
         journalEntryRepository = new InMemoryJournalEntryRepository(balanceRepository, accountRepository);
+        outboxWriter = new InMemoryOutboxWriter();
         service = new PostTransactionService(
                 idempotencyStore,
                 accountRepository,
                 balanceRepository,
-                journalEntryRepository
+                journalEntryRepository,
+                outboxWriter
         );
 
         tenantId = UUID.randomUUID();
@@ -80,11 +85,28 @@ class PostTransactionServiceTest {
         PostTransactionResult first = service.execute(command);
         assertThat(first.replayed()).isFalse();
         assertThat(first.journalEntryId()).isNotNull();
+        assertThat(outboxWriter.messages).hasSize(1);
+        assertThat(outboxWriter.messages.getFirst().eventType()).isEqualTo(TransactionPosted.EVENT_TYPE);
+        assertThat(outboxWriter.messages.getFirst().aggregateId()).isEqualTo(first.journalEntryId());
 
         PostTransactionResult replay = service.execute(command);
         assertThat(replay.replayed()).isTrue();
         assertThat(replay.journalEntryId()).isEqualTo(first.journalEntryId());
         assertThat(journalEntryRepository.entries).hasSize(1);
+        assertThat(outboxWriter.messages).hasSize(1);
+    }
+
+    @Test
+    void should_append_pending_outbox_event_on_post() {
+        PostTransactionResult result = service.execute(
+                transferCommand("key-outbox", "tx-outbox", "-5.50", "5.50"));
+
+        assertThat(outboxWriter.messages).hasSize(1);
+        OutboxWriter.OutboxMessage message = outboxWriter.messages.getFirst();
+        assertThat(message.tenantId()).isEqualTo(tenantId);
+        assertThat(message.aggregateId()).isEqualTo(result.journalEntryId());
+        assertThat(message.eventType()).isEqualTo(TransactionPosted.EVENT_TYPE);
+        assertThat(message.payload()).contains(result.journalEntryId().toString());
     }
 
     @Test
@@ -110,6 +132,7 @@ class PostTransactionServiceTest {
                 .get()
                 .extracting(b -> b.available().amount().toPlainString())
                 .isEqualTo("5.50");
+        assertThat(outboxWriter.messages).hasSize(1);
     }
 
     private PostTransactionCommand transferCommand(
@@ -125,6 +148,15 @@ class PostTransactionServiceTest {
                                 toId, credit, "USD", "SETTLED")
                 )
         );
+    }
+
+    private static final class InMemoryOutboxWriter implements OutboxWriter {
+        private final List<OutboxMessage> messages = new java.util.ArrayList<>();
+
+        @Override
+        public void append(OutboxMessage message) {
+            messages.add(message);
+        }
     }
 
     private static final class InMemoryIdempotencyStore implements IdempotencyStore {
