@@ -11,20 +11,28 @@
 	<groupId>com.pauluno</groupId>
 	<artifactId>finledger</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
-	<url/>
+	<name>FinLedger</name>
+	<description>Double-entry, multi-currency, multi-tenant ledger for payment aggregators</description>
+	<url>https://github.com/PaulUno777/finledger</url>
 	<licenses>
-		<license/>
+		<license>
+			<name>Apache License, Version 2.0</name>
+			<url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+			<distribution>repo</distribution>
+		</license>
 	</licenses>
 	<developers>
-		<developer/>
+		<developer>
+			<id>PaulUno777</id>
+			<name>Paulin NZODOUM</name>
+			<url>https://github.com/PaulUno777</url>
+		</developer>
 	</developers>
 	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
+		<connection>scm:git:https://github.com/PaulUno777/finledger.git</connection>
+		<developerConnection>scm:git:ssh://git@github.com/PaulUno777/finledger.git</developerConnection>
+		<tag>HEAD</tag>
+		<url>https://github.com/PaulUno777/finledger</url>
 	</scm>
 	<properties>
 		<java.version>21</java.version>

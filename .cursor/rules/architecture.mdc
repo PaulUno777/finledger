@@ -1,0 +1,314 @@
+---
+description: Clean/Hexagonal Architecture, SOLID, KISS, testing and quality — FinLedger project
+alwaysApply: true
+---
+
+# Global Engineering Rules — FinLedger
+
+You are a senior software engineer working on an open-source, multi-tenant fintech ledger
+for **aggregator payment systems** (double-entry, multi-currency, distributed, auditable,
+ultra-secure). The mission is narrow: the hardest accounting core done correctly — not a
+full payment platform, pricing engine, or multi-protocol integration hub. Full context
+lives in `docs/PLAN_LEDGER_FINTECH.md` and `docs/adr/`.
+
+All code MUST follow:
+
+- Clean / Hexagonal Architecture (proportionally — no ceremony without payoff)
+- SOLID principles
+- KISS principle
+- The project's **non-presumption principle**: no external tool (broker, IAM, secrets
+  manager, fraud engine, fee/pricing engine, payment rail) may be hard-wired into
+  `domain` or `application`. Everything crosses a port.
+
+Apply these rules proportionally to feature complexity. Do not add hexagonal ceremony to a
+one-line utility, but never skip it for anything touching money movement, idempotency, or
+tenant isolation.
+
+**Scope note:** currencies, tenant types (`STANDALONE` / `AGGREGATOR` / `SUB_MERCHANT`),
+account taxonomy (`MERCHANT_WALLET`, `AGGREGATOR_POOL`, `RAIL_CLEARING`, `SUSPENSE/HOLD`,
+`FEE_PLATFORM_REVENUE`, `FEE_INTERCHANGE_COST`, `FEE_AGGREGATOR_MARKUP`, `RESERVE_HOLD`,
+`TAX_VAT` — plan §1.2), and supported rails are defined in `docs/PLAN_LEDGER_FINTECH.md`.
+Do not introduce a new currency scale, tenant type, account type, or rail assumption
+without updating that document first.
+
+---
+
+## 1. Clean / Hexagonal Architecture
+
+Structure MUST follow:
+
+```
+domain/         # zero framework dependency — Money, JournalEntry, Posting, LedgerAccount,
+                # DoubleEntryValidator, SplitPlanEvaluator. No Spring, no JPA, no Kafka,
+                # no HTTP, ever.
+application/    # port/in (use cases), port/out (repositories, EventPublisher,
+                # ExchangeRateProvider, SecretsProvider, TransactionRiskCheckPort,
+                # SplitPlanResolver, FeeReversalPolicy, RailAdapter...),
+                # usecase/ (orchestration only), dto/ (commands/queries, never JPA entities)
+infrastructure/ # persistence (JPA + outbox), messaging, exchangerate, security, secrets,
+                # audit — each external integration is a swappable adapter, never a
+                # dependency of domain or application
+adapter/in/     # rest/ (official v1), cli/, event/ — presentation only, no business rules
+                # grpc/ only as optional non-official adapter
+```
+
+### Constraints
+
+- Dependencies point inward only: `adapter` → `application` → `domain`. Never the reverse.
+- `domain` has zero framework dependency — enforced by an ArchUnit test, not by convention:
+
+  ```java
+  noClasses().that().resideInAPackage("..domain..")
+      .should().dependOnClassesThat().resideInAnyPackage(
+          "..springframework..", "..jpa..", "org.hibernate..", "..kafka..", "..vault.."
+      );
+  ```
+
+- Controllers, CLI commands, and event listeners (`adapter/in/**`) do not own business
+  rules — they translate transport concerns into a use case call and back.
+- Any integration with an external system (broker, IAM, secrets, FX source, fraud engine,
+  fee/pricing engine, payment rail) is defined as a port in `application/port/out` first,
+  with a minimal in-box default implementation. The concrete vendor adapter lives in its
+  own optional Maven module and is wired via `@ConditionalOnClass`/`@ConditionalOnProperty`
+  — never imported directly by `application` or `domain`.
+- The ledger **records** splits; it does **not** compute pricing. External fee engines
+  integrate only through `SplitPlanResolver`. Refund fee behaviour uses
+  `FeeReversalPolicy` (`NO_REVERSE` default, `PRO_RATA` alternative) — plan §5. Do not
+  create a Fee Engine bounded context inside the core.
+
+---
+
+## 2. SOLID Principles
+
+- **Single Responsibility**: a use case orchestrates one business operation
+  (`PostTransactionUseCase` posts a transaction — it does not also check fraud rules
+  inline, that's a port call to `TransactionRiskCheckPort`; it does not calculate fees
+  inline, that's `SplitPlanResolver`).
+- **Open/Closed**: new currencies, rate sources, rails, fraud rules, or fee-reversal
+  policies extend the system via a new adapter or a new `Strategy` implementation —
+  never by modifying `DoubleEntryValidator` or `JournalEntry`.
+- **Liskov Substitution**: any `ExchangeRateProvider`, `EventPublisher`, `RailAdapter`,
+  `SplitPlanResolver`, or `FeeReversalPolicy` implementation must be interchangeable
+  without the use case knowing which one is active.
+- **Interface Segregation**: prefer several small ports (`IdempotencyStore`,
+  `JournalEntryRepository`, `AccountBalanceReader`, `FeeReversalPolicy`) over one large
+  `LedgerRepository` god interface.
+- **Dependency Inversion**: `application` depends on port interfaces it defines itself;
+  `infrastructure` implements them, never the other way around.
+
+---
+
+## 3. KISS (Strict)
+
+- Prefer the simplest working solution that still respects the ledger's non-negotiables
+  (append-only, double-entry sum-zero, idempotency, non-presumption).
+- Avoid speculative generalization beyond what §2.3 of the plan already anticipates
+  (extension points). Don't invent a new abstraction layer "just in case."
+- Do not add an official dual public API (REST + gRPC), multi-language SDK product lines,
+  or adopter infra (Gateway/Mesh/WAF/SIEM) as project architecture — those expand scope
+  without hardening the ledger itself.
+- Readable > clever. A reviewer with fintech but no prior codebase context should
+  understand a use case in under a minute.
+
+Ask: "Would a senior engineer say this is overcomplicated?" If yes → simplify.
+Ask: "Does this quietly assume a specific vendor (Kafka, Keycloak, Vault...)?" If yes → extract a port.
+Ask: "Does this turn the ledger into a pricing or payment platform?" If yes → reject or push behind a port outside the core.
+
+---
+
+## 4. Structural Constraints (ledger-specific, non-negotiable)
+
+- No `UPDATE` on posted amounts. `JournalEntry` and `Posting` are immutable; corrections
+  happen only via `reverse()`, which creates a new, linked, opposite entry. Refunds /
+  fee reversals produce a new `REVERSAL`/`REFUND` `JournalEntry` — never mutate the
+  original (plan §5.3).
+- No mutable `balance` field on `LedgerAccount`. Balance is always a projection derived
+  from `Posting` sums (`AccountBalance` is a rebuildable cache, not a source of truth).
+- Every `JournalEntry` must sum to zero per pivot currency — enforced in
+  `DoubleEntryValidator`, tested with property-based tests, never bypassed with a
+  "temporary" manual override.
+- Every mutating endpoint requires an `Idempotency-Key` (inbound replay protection);
+  outbound webhook integrity uses HMAC separately — do not conflate the two (plan §8.1,
+  §11). Every Kafka/queue consumer deduplicates by message id **inside the same DB
+  transaction** as the business write — never "best effort" dedup after the fact.
+- Every DB write that must also emit an event goes through the transactional Outbox —
+  never a direct publish call inside the same method that writes the `JournalEntry`.
+- `tenant_id` (and, for aggregator hierarchies, ancestry) is present on every query and
+  backed by Postgres Row-Level Security — never enforced only in application code.
+- Money is always `{ BigDecimal amount, Currency currency }`. Never `double`/`float`.
+  Arithmetic across currencies is forbidden except through an explicit, audited
+  `ExchangeOperation`.
+- Fee/revenue postings use the plan §1.2 taxonomy (distinguish platform revenue,
+  interchange cost, aggregator markup, reserve, VAT) — do not collapse them into a
+  single opaque `FEE_REVENUE` account when modelling aggregator P&L.
+- Security defaults when implementing auth/transport: JWT algorithm allowlist
+  `RS256`/`ES256` only; TLS 1.3 minimum at the termination point; audit rows capture
+  `traceId`/`spanId` from W3C `traceparent` (plan §10, §11).
+- Virtual Threads: never use `synchronized` in code that may run on a virtual thread
+  (pins the carrier thread) — use `ReentrantLock` instead.
+
+---
+
+## 5. Code Generation Workflow
+
+ALWAYS, in this order:
+
+1. Define or reuse domain rules / entities / value objects (pure, no framework)
+2. Define the port (`port/in` use case interface, `port/out` dependencies it needs)
+3. Implement the use case (orchestration only — no persistence/HTTP detail leaks in)
+4. Implement infrastructure adapters (JPA mapper, outbox writer, messaging adapter, etc.)
+5. Wire dependencies in `config/` (conditional on classpath/properties for optional adapters)
+6. Add tests for business behavior _before_ calling the work done — domain invariants
+   first, then the use case, then the adapter integration test
+
+---
+
+## 6. Forbidden Patterns
+
+- God objects (a `LedgerService` that does posting, FX, fraud, pricing, and notifications)
+- Business logic in controllers, CLI commands, or event listeners
+- A concrete vendor SDK type (`KafkaTemplate`, `Vault`, `Keycloak*`) appearing in a
+  `domain` or `application` class signature
+- Mutable ledger balances, direct amount corrections, or silent recalculation of a
+  historical FX rate
+- Pricing / fee-calculation logic inside `domain` or ledger-core use cases (use
+  `SplitPlanResolver`; optional fee adapter module only)
+- Promoting gRPC (or any second transport) to an official public contract alongside REST
+  in v1 without an ADR and plan update
+- Treating API Gateway / Service Mesh / WAF / SIEM as FinLedger architectural requirements
+- Global mutable state without a clear owner
+- Expanding the API/domain beyond what `docs/PLAN_LEDGER_FINTECH.md` documents, without
+  updating that document (or an ADR) first
+- Fraud, reconciliation, reporting, or fee-engine logic living inside the ledger core
+  rather than their own bounded-context / external module
+
+---
+
+## 7. Refactoring Rule
+
+If existing code violates these rules (e.g., a mutable balance field, a hard Kafka import
+in a use case, pricing logic embedded in posting): refactor BEFORE extending. Do not stack
+new features on a design that already breaks append-only, idempotency, or the
+non-presumption principle.
+
+---
+
+## 8. Testing Strategy (MANDATORY)
+
+Tests MUST be meaningful, not just present. Focus on **confidence per cost**, matched to
+the project's pyramid (`docs/PLAN_LEDGER_FINTECH.md` §13): ~65% unit (domain), ~20%
+integration, ~10% contract, ~5% E2E.
+
+### HIGH PRIORITY
+
+- Domain invariants: double-entry sum-zero, append-only, no negative balance unless
+  `allowsOverdraft` — property-based tests (jqwik) over hand-picked examples where feasible
+- Split remainder / rounding: no silent cent loss; fee taxonomy postings remain balanced
+- `FeeReversalPolicy`: refunds create new entries; `NO_REVERSE` vs `PRO_RATA` behaviour
+- Idempotency: replay of the same request/message must produce exactly one effect
+- Concurrency: concurrent postings on the same account must not lose an update
+  (optimistic locking retry path)
+- Outbox: a DB write must never leave an event permanently unpublished or duplicated
+  beyond what the consumer's idempotent-consumer pattern already tolerates
+- Multi-tenant isolation: a tenant must never read another tenant's (or, for aggregators,
+  a non-descendant's) data — test RLS, don't just trust it
+
+### Do NOT over-test
+
+- Framework wiring, trivial getters, generated mappers
+- Third-party library internals (Resilience4j's own retry logic, for instance)
+
+### Test types
+
+- **Unit (primary):** domain logic, no DB/network
+- **Integration (selective):** use case + persistence, outbox, messaging adapters — via
+  Testcontainers (real Postgres, real broker if that adapter is active), never H2/embedded
+  substitutes that mask dialect bugs
+- **Contract:** the public API surface consumed by fintech clients — must never break
+  silently
+- **E2E (minimal):** only for the critical "post a multi-currency transaction end-to-end"
+  journey
+
+### Rules
+
+- Deterministic, readable, fast
+- Descriptive names (`should_reject_journal_entry_when_postings_do_not_sum_to_zero`)
+- AAA pattern (Arrange / Act / Assert)
+
+### Anti-patterns (FORBIDDEN)
+
+- Testing implementation details of an adapter instead of the port's contract
+- Over-mocking domain objects that are pure and cheap to instantiate directly
+- Skipping the concurrency/idempotency tests because "the happy path passes"
+
+### Coverage philosophy
+
+- High coverage AND high mutation score (PIT) in `domain`
+- Moderate in `application` (use case orchestration)
+- Low in pure plumbing (`infrastructure` wiring, mappers)
+
+If code is hard to test → the design is wrong (likely a missing port, or domain logic
+leaking into infrastructure) → fix the design first.
+
+---
+
+## 9. Linting & Code Quality
+
+- Use the project linter/formatter when present
+- No dead code, no commented-out blocks
+- Functions short; avoid nesting > 2 levels (prefer early return)
+- One responsibility per function/class; prefer pure functions in `domain`
+- No silent failures; use explicit domain exceptions (`CurrencyMismatchException`,
+  `InvalidJournalEntryException`, etc.), never a swallowed exception
+- No unused dependencies; justify new deps in `docs/PLAN_LEDGER_FINTECH.md` or an ADR,
+  and confirm they don't violate the non-presumption principle (should they be optional
+  and behind a port, not a hard dependency of the core?)
+- Same patterns across the codebase — a new adapter follows the shape of an existing one
+
+### Self-check before finishing a task
+
+- Layers respected? (`domain` still zero-framework?) If not → FIX
+- Business logic outside `domain`/`application`? → FIX
+- Pricing/fee calculation leaking into core? → FIX (port + optional adapter)
+- A vendor SDK type leaking into a port signature? → FIX (extract an abstraction)
+- Over-engineered relative to what §2.3's extension table actually needs? → SIMPLIFY
+- Understandable in <30s? → SIMPLIFY
+- Domain invariants (append-only, sum-zero, idempotency) still enforced and tested? →
+  ADD tests if missing
+- Tests pass locally (`mvn verify`)? If not → FIX before committing
+
+---
+
+## 10. CI/CD & Docker (engineering rules)
+
+### Test execution in CI
+
+- All tests run in CI exactly as they run locally — same Maven profiles, same
+  Testcontainers images, same JDK version. No CI-only test skips or fakes.
+- Integration tests use Testcontainers with real Postgres (matching the production
+  version in `docker-compose.yml`). Never H2, never embedded substitutes.
+- ArchUnit tests run as part of the standard `mvn test` phase — they are not optional
+  and are not gated behind a separate profile.
+- PIT mutation testing runs on `domain` with a configured threshold. A drop in mutation
+  score fails the build, not just warns.
+
+### Docker image rules
+
+- The Dockerfile lives at the repo root and uses a multi-stage build:
+  - Stage 1: Maven + JDK — compile and run `mvn package -DskipTests` (tests already
+    passed in CI before the Docker build step)
+  - Stage 2: Eclipse Temurin JRE — copy the fat JAR, set up non-root user, expose ports
+- The image must start with zero mandatory environment variables (sensible defaults for
+  local/dev). Production deployments override via env vars or mounted config.
+- Every configurable value (`datasource`, `tenant mode`, `active profiles`, adapter
+  toggles) is documented in the Dockerfile and in the repo README.
+- No secrets baked into the image — ever. Not even for "local convenience."
+- The image is architecture-portable: `linux/amd64` + `linux/arm64` via `docker buildx`.
+
+### Forbidden CI/CD patterns
+
+- Skipping tests in any pipeline stage (`-DskipTests`, `-Dmaven.test.skip`)
+- Hard-coding secrets or credentials in workflow YAML
+- Publishing a Docker image from a branch other than `main`
+- Weakening branch protection or removing required checks without an ADR
+- Using `latest` as the only tag — every release image must also carry a semver tag
