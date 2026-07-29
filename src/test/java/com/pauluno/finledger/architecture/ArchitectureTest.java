@@ -6,7 +6,7 @@ import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.junit.ArchTests;
 
 @AnalyzeClasses(
-        packages = "com.finledger",
+        packages = "com.pauluno.finledger",
         importOptions = DoNotIncludeTests.class
 )
 class ArchitectureTest {

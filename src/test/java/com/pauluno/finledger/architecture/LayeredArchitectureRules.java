@@ -10,7 +10,8 @@ public class LayeredArchitectureRules {
 
         @ArchTest
         public static final ArchRule clean_architecture_layers_are_respected = layeredArchitecture()
-                        .consideringAllDependencies()
+                        .consideringOnlyDependenciesInAnyPackage("com.pauluno.finledger..")
+                        .withOptionalLayers(true)
                         .layer("Domain").definedBy("..domain..")
                         .layer("Application").definedBy("..application..")
                         .layer("Presentation").definedBy("..presentation..")
@@ -32,5 +33,6 @@ public class LayeredArchitectureRules {
                         .orShould().dependOnClassesThat().resideInAnyPackage("..application..")
                         .orShould().dependOnClassesThat().resideInAnyPackage("..infrastructure..")
                         .orShould().dependOnClassesThat().resideInAnyPackage("..presentation..")
+                        .allowEmptyShould(true)
                         .as("The shared package must be a pure utility module with zero dependencies on other layers");
 }

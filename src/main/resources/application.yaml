@@ -6,6 +6,11 @@ spring:
   profiles:
     active: local
 
+  # Layered config (plan §18.1): defaults here → optional external file → env vars.
+  # Mount or place overrides under ./config (local) or /workspace/config (container).
+  config:
+    additional-location: optional:file:./config/,optional:file:/workspace/config/
+
 server:
   port: 8080
 
@@ -18,7 +23,7 @@ management:
 
   endpoint:
     health:
-      show-details: always
+      show-details: when_authorized
 
 logging:
   level:

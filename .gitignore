@@ -37,3 +37,5 @@ build/
 .env
 .DS_Store
 logs/
+# graphify knowledge graph (local)
+graphify-out/

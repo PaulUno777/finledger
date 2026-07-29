@@ -1,0 +1,199 @@
+---
+description: Project workflow gates — plan/ADRs, commits, security, scope, AI-driven process
+alwaysApply: true
+---
+
+# FinLedger workflow
+
+## Mission (judge every proposal against this)
+
+FinLedger is an **ultra-secure accounting ledger for aggregator payment systems**. It is
+**not** a full payment platform, **not** a pricing engine, and **not** a multi-protocol
+integration hub. Prefer the hardest, most critical piece done correctly (double-entry
+accounting, idempotency, auditability, tenant isolation) over expanding surface area.
+
+## Sources of truth
+
+- Product/architecture plan: `docs/PLAN_LEDGER_FINTECH.md` — the reference for domain
+  rules, tenant model, account taxonomy (§1.2), extension points (§2.3), fee/split
+  integration (§5), roadmap (§19), and structural decisions (§21). Update it at every
+  significant architectural step; do not silently drift from it.
+- Decisions log: `docs/adr/*.md` — one ADR per structural decision (why Outbox over 2PC,
+  why Virtual Threads over Go, why the Fraud module is a separate bounded context, etc.).
+  A decision not yet in `docs/PLAN_LEDGER_FINTECH.md` §21 or in an ADR is not yet a decision
+  — raise it before building on it.
+- Engineering style: `.cursor/rules/architecture.mdc`
+
+## Git branching (mandatory)
+
+- `main` — releases only (no direct agent commits)
+- `develop` — integration base for all new work
+- One feature branch per roadmap phase (see `docs/PLAN_LEDGER_FINTECH.md` §19 for the
+  phase list: domain core, persistence, PostTransaction use case, outbox, hierarchical
+  multi-tenant, FX providers, split engine + fee taxonomy/`FeeReversalPolicy`, balance
+  types, audit trail, security, rails, CLI, fraud module, CI/CD, observability, contract
+  tests + reference client, hardening; multi-language SDKs and official gRPC are
+  **post-v1**)
+- PRs are **human-owned**: the agent must NOT run `gh pr create`
+- After a phase PR is merged: update local `develop`, then branch the next phase from `develop`
+
+## Phase gates (mandatory)
+
+Work proceeds **one phase at a time**, matching the roadmap in
+`docs/PLAN_LEDGER_FINTECH.md` §19.
+
+At the end of each phase:
+
+1. Run relevant verification (unit + property-based tests on `domain`, ArchUnit rules,
+   integration tests via Testcontainers, boot smoke test)
+2. Create atomic Conventional Commit(s) on the phase feature branch
+3. Push the feature branch if remote setup is requested
+4. **Stop and wait for human confirmation** (human opens/merges PR into `develop`) before
+   starting the next phase
+
+Do not start Phase N+1 until the user confirms Phase N is merged (or explicitly waives the
+PR gate). Never skip the ArchUnit check before declaring a phase done — a phase that
+introduces a framework dependency into `domain` is not complete, regardless of test count.
+
+## Layers & business rules
+
+- Controllers, CLI commands, event consumers: transport/orchestration only
+- Every business rule (double-entry validation, idempotency check, fraud rule, FX
+  selection, split evaluation, fee-reversal policy selection) lives in `domain` or
+  `application` and **must be tested**, per `.cursor/rules/architecture.mdc` §8
+- Pricing / fee *calculation* does **not** belong in the ledger core: record a
+  `SplitPlan` via `SplitPlanResolver`; refund fee behaviour via `FeeReversalPolicy`
+  (`docs/PLAN_LEDGER_FINTECH.md` §5) — never invent an in-core Fee Engine bounded context
+
+## Scope discipline (non-presumption principle)
+
+- Do not hard-wire a specific vendor (a concrete broker, IAM provider, secrets manager,
+  fraud engine, fee/pricing engine, or payment rail) into `domain` or `application`. If a
+  phase needs one to make progress, implement it as an optional adapter module behind the
+  relevant port (`docs/PLAN_LEDGER_FINTECH.md` §2.3), with the in-box default remaining
+  functional without it.
+- Do not treat adopter deployment topology (API Gateway, Service Mesh, WAF, SIEM,
+  certificate rotation) as ledger architecture decisions — mention only in ops docs if
+  needed, never as required project design.
+- REST + OpenAPI 3.1 is the sole official inbound interface in v1. gRPC may exist as an
+  optional `adapter/in/grpc`; do not elevate it to a parallel official public contract.
+- Do not ship multi-language "official" SDKs in v1; at most one non-guaranteed reference
+  client under `/sdk-reference/` documenting sensitive patterns (idempotency, HMAC,
+  retry, `traceparent`) — see plan §15 / §19.
+- Do not extend the API, tenant model, account taxonomy (§1.2), or supported
+  currencies/rails beyond `docs/PLAN_LEDGER_FINTECH.md` unless that document (or an ADR)
+  is updated first.
+- Do not add a dependency without a one-line justification — and confirm whether it
+  belongs in the core module or an optional adapter module before adding it to `pom.xml`.
+- Prefer extending the existing hexagonal structure over introducing a parallel one for
+  "just this feature."
+
+## Git quality
+
+- Conventional Commits: `feat:`, `fix:`, `chore:`, `test:`, `docs:`, `ci:`
+- One commit = one atomic concern (e.g., don't mix a domain invariant fix with an
+  unrelated adapter refactor)
+- Never leave existing tests red on purpose
+- Never commit directly on `main` or `develop` for phase work — use the feature branch
+
+## Security
+
+- CORS and security settings are never relaxed "to make it work" — no wildcard origins in
+  production-like or default config
+- Secrets are never hard-coded or logged, in any environment, even for local dev
+  convenience — use the `SecretsProvider` port's default (env vars, clearly flagged as
+  dev-only) rather than inlining a value
+- Row-Level Security and tenant/ancestry checks are never bypassed for convenience,
+  including in seed scripts or test fixtures that could be mistaken for a real pattern
+- Audit trail writes (hash-chained `audit_log`) are never optional or skippable for a
+  "fast path" — if a change needs to skip audit, that's a design smell to raise, not
+  silently implement
+- JWT validation allowlist: `RS256` / `ES256` only — reject `alg=none` and symmetric
+  algorithms (`HS256`, etc.) for public clients (`docs/PLAN_LEDGER_FINTECH.md` §11)
+- TLS 1.3 minimum at the effective termination point (often reverse-proxy/LB, not
+  necessarily the Spring Boot process itself)
+- Keep inbound `Idempotency-Key` and outbound webhook HMAC distinct — one does not
+  replace the other (`docs/PLAN_LEDGER_FINTECH.md` §8.1, §11)
+- Propagate W3C `traceparent`; audit entries must capture `traceId`/`spanId` for
+  correlation with OpenTelemetry (`docs/PLAN_LEDGER_FINTECH.md` §10)
+
+## Ambiguity
+
+- Surface assumptions in `docs/PLAN_LEDGER_FINTECH.md` or a new ADR; never silently invent
+  domain behavior (e.g., a rounding rule, a fee-split formula, a `FeeReversalPolicy`
+  default other than `NO_REVERSE`, a fraud fail-open/fail-closed default) without
+  documenting the choice and its trade-off
+
+## CI/CD — GitHub Actions (mandatory)
+
+Pipeline lives in `.github/workflows/`. All workflows use Conventional Commit-derived
+semantics for triggers.
+
+### Workflow structure
+
+- **`ci.yml`** — runs on every push to `develop` and on every PR targeting `develop`:
+  1. `mvn verify` (unit + integration tests via Testcontainers, ArchUnit, PIT mutation)
+  2. ArchUnit gate: fail the pipeline if `domain` depends on any framework class
+  3. Linting / formatting check (if a formatter plugin is configured)
+  4. Report test results and coverage as PR check annotations
+
+- **`release.yml`** — runs on push to `main` (after a release PR merge):
+  1. `mvn verify -Pprod` (full test suite, no skips)
+  2. Build multi-arch Docker image (`linux/amd64`, `linux/arm64`)
+  3. Tag image as `pauluno/finledger:<version>` and `pauluno/finledger:latest`
+  4. Push to Docker Hub (credentials via `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` secrets)
+  5. Create a GitHub Release with changelog derived from Conventional Commits since last tag
+
+### Rules
+
+- Never skip tests in CI — no `-DskipTests`, no `-Dmaven.test.skip`
+- Testcontainers tests require Docker-in-Docker or a service container; use
+  `testcontainers/ryuk` cleanup — never leave dangling containers
+- Secrets (`DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`) are GitHub repository secrets, never
+  hard-coded in workflow files
+- The agent must NOT modify workflow files to weaken gates (remove ArchUnit step, lower
+  coverage thresholds, skip mutation testing) without an ADR justifying the change
+- CI must pass before any PR is mergeable — branch protection on `develop` and `main`
+
+### Docker image contract
+
+- Base image: Eclipse Temurin JRE (matching the project's Java version)
+- Non-root user (`finledger:finledger`, UID 1000)
+- Exposes port `8080` (HTTP) and `8081` (management/actuator)
+- Health check: `GET /actuator/health`
+- All configuration is externalized via environment variables or mounted config files:
+  - `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`
+  - `SPRING_PROFILES_ACTIVE` (e.g., `postgres`, `kafka`, `vault`)
+  - `FINLEDGER_TENANT_MODE` (`STANDALONE` | `AGGREGATOR`)
+  - Optional adapter activation: `FINLEDGER_FX_PROVIDER`, `FINLEDGER_MESSAGING_BROKER`,
+    `FINLEDGER_SECRETS_PROVIDER`, `FINLEDGER_FRAUD_ENABLED`
+- A `docker-compose.yml` in the repo root provides a ready-to-run local stack
+  (Postgres, the app, and optional services) for companies evaluating the service
+- Dockerfile uses multi-stage build: build stage with Maven + JDK, runtime stage with
+  JRE only — keep the final image lean
+
+## Testing gates in workflow
+
+Every phase branch and every PR must pass these before merge:
+
+1. **Unit tests** — `mvn test` (domain + application layers)
+2. **Integration tests** — `mvn verify -Pintegration` (Testcontainers, real Postgres)
+3. **ArchUnit** — architecture rules enforced as test failures, not warnings
+4. **Mutation testing (PIT)** — `domain` module must maintain mutation score threshold
+   (configured in `pom.xml`); CI fails if score drops below threshold
+5. **Boot smoke test** — Spring context loads successfully with the default profile
+
+### Test tagging convention
+
+- `@Tag("unit")` — fast, no external deps, runs in `mvn test`
+- `@Tag("integration")` — requires Testcontainers, runs in `mvn verify -Pintegration`
+- `@Tag("architecture")` — ArchUnit rules, runs in `mvn test`
+- `@Tag("e2e")` — full journey tests, runs only in release pipeline
+
+## AI-driven demonstration
+
+- Prefer plan → rules → implement → test → document over opaque one-shot generation
+- When adding a new extension point adapter (e.g., a new `RailAdapter`,
+  `ExchangeRateProvider`, or optional `SplitPlanResolver` fee-adapter implementation),
+  follow the shape of an existing reference adapter and update the extension table in
+  `docs/PLAN_LEDGER_FINTECH.md` §2.3
