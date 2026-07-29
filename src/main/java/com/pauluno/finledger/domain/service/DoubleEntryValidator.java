@@ -30,8 +30,7 @@ public final class DoubleEntryValidator {
     public static void validate(
             List<Posting> postings,
             Map<UUID, LedgerAccount> accounts,
-            Map<UUID, AccountBalance> balancesBefore
-    ) {
+            Map<UUID, AccountBalance> balancesBefore) {
         Objects.requireNonNull(postings, "postings");
         Objects.requireNonNull(accounts, "accounts");
         Objects.requireNonNull(balancesBefore, "balancesBefore");
@@ -50,8 +49,7 @@ public final class DoubleEntryValidator {
 
     private static void validateAccountsAndCurrencies(
             List<Posting> postings,
-            Map<UUID, LedgerAccount> accounts
-    ) {
+            Map<UUID, LedgerAccount> accounts) {
         for (Posting posting : postings) {
             LedgerAccount account = accounts.get(posting.accountId());
             if (account == null) {
@@ -95,8 +93,7 @@ public final class DoubleEntryValidator {
 
     private static void validateOverdraft(
             Map<UUID, LedgerAccount> accounts,
-            Map<UUID, AccountBalance> balancesAfter
-    ) {
+            Map<UUID, AccountBalance> balancesAfter) {
         for (Map.Entry<UUID, AccountBalance> entry : balancesAfter.entrySet()) {
             LedgerAccount account = accounts.get(entry.getKey());
             if (account == null) {
