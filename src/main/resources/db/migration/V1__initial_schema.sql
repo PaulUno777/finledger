@@ -1,6 +1,5 @@
-CREATE TABLE IF NOT EXISTS users
-(
-    id UUID PRIMARY KEY,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    created_at TIMESTAMP NOT NULL
-);
+-- Marker migration for Track A.
+-- Ledger schema (accounts, journal entries, postings, outbox, etc.)
+-- is introduced in persistence phase FL-020.
+-- This file intentionally creates no application tables.
+SELECT 1;
