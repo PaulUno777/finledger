@@ -1,3 +1,5 @@
+# Dev-only profile for local docker-compose (not for production).
+
 spring:
 
   datasource:
