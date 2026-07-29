@@ -69,6 +69,32 @@ public final class JournalEntry {
     }
 
     /**
+     * Hydrates an entry already persisted and validated. Does not re-run
+     * {@link DoubleEntryValidator} — the database is the source of truth for reload.
+     */
+    public static JournalEntry reconstitute(
+            UUID id,
+            UUID tenantId,
+            IdempotencyKey idempotencyKey,
+            TransactionReference transactionReference,
+            JournalEntryType type,
+            List<Posting> postings,
+            Instant occurredAt,
+            UUID reversesEntryId
+    ) {
+        return new JournalEntry(
+                id,
+                tenantId,
+                idempotencyKey,
+                transactionReference,
+                type,
+                postings,
+                occurredAt,
+                reversesEntryId
+        );
+    }
+
+    /**
      * Creates a new REVERSAL entry with opposite signed amounts, linked to this entry.
      * Does not mutate this instance.
      */
