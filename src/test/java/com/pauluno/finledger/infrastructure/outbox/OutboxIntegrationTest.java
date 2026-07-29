@@ -1,18 +1,23 @@
-package com.pauluno.finledger.presentation.rest;
+package com.pauluno.finledger.infrastructure.outbox;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -28,12 +33,17 @@ import org.testcontainers.utility.DockerImageName;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pauluno.finledger.application.event.TransactionPosted;
+import com.pauluno.finledger.application.port.out.EventPublisher;
+import com.pauluno.finledger.application.port.out.OutboxEventRepository;
+import com.pauluno.finledger.infrastructure.persistence.jpa.entity.OutboxEventEntity;
+import com.pauluno.finledger.infrastructure.persistence.jpa.repository.SpringDataOutboxEventRepository;
 
 @SpringBootTest
 @Testcontainers
 @Tag("integration")
 @SuppressWarnings("resource")
-class PostTransactionIntegrationTest {
+class OutboxIntegrationTest {
 
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(
@@ -61,80 +71,104 @@ class PostTransactionIntegrationTest {
                 () -> "org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration");
     }
 
+    @TestConfiguration
+    static class RecordingPublisherConfig {
+        @Bean
+        @Primary
+        EventPublisher recordingEventPublisher() {
+            return new RecordingEventPublisher();
+        }
+    }
+
+    static final class RecordingEventPublisher implements EventPublisher {
+        private final List<PublishedEvent> published = new CopyOnWriteArrayList<>();
+
+        @Override
+        public void publish(PublishedEvent event) {
+            published.add(event);
+        }
+    }
+
     @Autowired
     private WebApplicationContext webApplicationContext;
 
+    @Autowired
+    private OutboxEventRepository outboxEventRepository;
+
+    @Autowired
+    private SpringDataOutboxEventRepository springDataOutboxEventRepository;
+
+    @Autowired
+    private OutboxPoller outboxPoller;
+
+    @Autowired
+    private EventPublisher eventPublisher;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+        if (eventPublisher instanceof RecordingEventPublisher recording) {
+            recording.published.clear();
+        }
+    }
 
     @Test
-    void should_create_accounts_post_transfer_replay_and_conflict_on_body_change() throws Exception {
-        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+    void should_write_outbox_row_with_journal_and_publish_via_poller() throws Exception {
         UUID tenantId = UUID.randomUUID();
+        UUID fromId = createAccount(tenantId, "merchant-a");
+        UUID toId = createAccount(tenantId, "merchant-b");
 
-        UUID fromId = createAccount(mockMvc, tenantId, "merchant-a", true);
-        UUID toId = createAccount(mockMvc, tenantId, "merchant-b", true);
-
-        String idempotencyKey = "idem-" + UUID.randomUUID();
         String body = """
                 {
-                  "transactionReference": "tx-transfer-1",
+                  "transactionReference": "tx-outbox-1",
                   "postings": [
-                    {"accountId": "%s", "amount": "-25.00", "currencyCode": "USD", "settlementStatus": "SETTLED"},
-                    {"accountId": "%s", "amount": "25.00", "currencyCode": "USD", "settlementStatus": "SETTLED"}
+                    {"accountId": "%s", "amount": "-12.00", "currencyCode": "USD", "settlementStatus": "SETTLED"},
+                    {"accountId": "%s", "amount": "12.00", "currencyCode": "USD", "settlementStatus": "SETTLED"}
                   ]
                 }
                 """.formatted(fromId, toId);
 
         MvcResult created = mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", tenantId)
-                        .header("Idempotency-Key", idempotencyKey)
+                        .header("Idempotency-Key", "outbox-" + UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.replayed").value(false))
                 .andExpect(jsonPath("$.journalEntryId").isNotEmpty())
                 .andReturn();
 
-        String journalEntryId = objectMapper.readTree(created.getResponse().getContentAsString())
-                .get("journalEntryId").asText();
+        UUID journalEntryId = UUID.fromString(
+                objectMapper.readTree(created.getResponse().getContentAsString())
+                        .get("journalEntryId").asText());
 
-        mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", tenantId)
-                        .header("Idempotency-Key", idempotencyKey)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.replayed").value(true))
-                .andExpect(jsonPath("$.journalEntryId").value(journalEntryId));
+        List<OutboxEventEntity> rows = springDataOutboxEventRepository.findAll();
+        assertThat(rows).hasSize(1);
+        assertThat(rows.getFirst().getAggregateId()).isEqualTo(journalEntryId);
+        assertThat(rows.getFirst().getEventType()).isEqualTo(TransactionPosted.EVENT_TYPE);
+        assertThat(rows.getFirst().getStatus()).isEqualTo(OutboxEventRepository.OutboxStatus.PENDING.name());
+        assertThat(rows.getFirst().getPayload()).contains(journalEntryId.toString());
 
-        String differentBody = """
-                {
-                  "transactionReference": "tx-transfer-1",
-                  "postings": [
-                    {"accountId": "%s", "amount": "-30.00", "currencyCode": "USD", "settlementStatus": "SETTLED"},
-                    {"accountId": "%s", "amount": "30.00", "currencyCode": "USD", "settlementStatus": "SETTLED"}
-                  ]
-                }
-                """.formatted(fromId, toId);
+        outboxPoller.poll();
 
-        mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", tenantId)
-                        .header("Idempotency-Key", idempotencyKey)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(differentBody))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+        RecordingEventPublisher recording = (RecordingEventPublisher) eventPublisher;
+        assertThat(recording.published).hasSize(1);
+        assertThat(recording.published.getFirst().eventType()).isEqualTo(TransactionPosted.EVENT_TYPE);
+        assertThat(recording.published.getFirst().aggregateId()).isEqualTo(journalEntryId);
 
-        mockMvc.perform(get("/api/v1/tenants/{tenantId}/journal-entries/{id}", tenantId, journalEntryId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.journalEntryId").value(journalEntryId))
-                .andExpect(jsonPath("$.postings.length()").value(2));
+        OutboxEventEntity published = springDataOutboxEventRepository.findById(rows.getFirst().getId()).orElseThrow();
+        assertThat(published.getStatus()).isEqualTo(OutboxEventRepository.OutboxStatus.PUBLISHED.name());
+        assertThat(published.getPublishedAt()).isNotNull();
+        assertThat(outboxEventRepository.claimPending(10)).isEmpty();
     }
 
-    private UUID createAccount(MockMvc mockMvc, UUID tenantId, String ownerRef, boolean allowsOverdraft)
-            throws Exception {
+    private UUID createAccount(UUID tenantId, String ownerRef) throws Exception {
         String payload = objectMapper.writeValueAsString(Map.of(
                 "ownerRef", ownerRef,
                 "currencyCode", "USD",
                 "type", "MERCHANT_WALLET",
-                "allowsOverdraft", allowsOverdraft
+                "allowsOverdraft", true
         ));
         MvcResult result = mockMvc.perform(post("/api/v1/tenants/{tenantId}/accounts", tenantId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -142,7 +176,6 @@ class PostTransactionIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(json.get("accountId").asText()).isNotBlank();
         return UUID.fromString(json.get("accountId").asText());
     }
 }
