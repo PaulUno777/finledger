@@ -37,3 +37,6 @@ would couple operator tooling to the server classpath and complicate packaging.
 - Positive: operators get a runnable shaded CLI jar; server stays focused on the API
 - Trade-off: CLI must track REST contracts; breaking API changes need CLI updates
 - Follow-up: document `FINLEDGER_BASE_URL` / `FINLEDGER_TOKEN` in configuration docs
+- The CLI’s private `ApiClient` is intentional until FL-160 ships an in-repo
+  `/sdk-reference/` client (and FL-180 official multi-lang SDKs in **separate
+  repos**); do not extract a shared SDK module in this phase.
