@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
@@ -23,8 +24,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -36,10 +35,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pauluno.finledger.application.event.TransactionPosted;
 import com.pauluno.finledger.application.port.out.EventPublisher;
 import com.pauluno.finledger.application.port.out.OutboxEventRepository;
+import com.pauluno.finledger.application.tenant.TenantContext;
 import com.pauluno.finledger.infrastructure.persistence.jpa.entity.OutboxEventEntity;
 import com.pauluno.finledger.infrastructure.persistence.jpa.repository.SpringDataOutboxEventRepository;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @Testcontainers
 @Tag("integration")
 @SuppressWarnings("resource")
@@ -60,8 +61,10 @@ class OutboxIntegrationTest {
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.username", () -> "finledger_app");
+        registry.add("spring.datasource.password", () -> "finledger");
+        registry.add("spring.flyway.user", POSTGRES::getUsername);
+        registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("spring.flyway.enabled", () -> "true");
         registry.add("spring.data.redis.host", REDIS::getHost);
@@ -90,7 +93,7 @@ class OutboxIntegrationTest {
     }
 
     @Autowired
-    private WebApplicationContext webApplicationContext;
+    private MockMvc mockMvc;
 
     @Autowired
     private OutboxEventRepository outboxEventRepository;
@@ -105,11 +108,9 @@ class OutboxIntegrationTest {
     private EventPublisher eventPublisher;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
         if (eventPublisher instanceof RecordingEventPublisher recording) {
             recording.published.clear();
         }
@@ -117,7 +118,7 @@ class OutboxIntegrationTest {
 
     @Test
     void should_write_outbox_row_with_journal_and_publish_via_poller() throws Exception {
-        UUID tenantId = UUID.randomUUID();
+        UUID tenantId = createTenant("outbox-shop");
         UUID fromId = createAccount(tenantId, "merchant-a");
         UUID toId = createAccount(tenantId, "merchant-b");
 
@@ -143,24 +144,54 @@ class OutboxIntegrationTest {
                 objectMapper.readTree(created.getResponse().getContentAsString())
                         .get("journalEntryId").asText());
 
-        List<OutboxEventEntity> rows = springDataOutboxEventRepository.findAll();
+        List<OutboxEventEntity> rows;
+        TenantContext.set(tenantId);
+        try {
+            rows = springDataOutboxEventRepository.findAll();
+        } finally {
+            TenantContext.clear();
+        }
         assertThat(rows).hasSize(1);
         assertThat(rows.getFirst().getAggregateId()).isEqualTo(journalEntryId);
         assertThat(rows.getFirst().getEventType()).isEqualTo(TransactionPosted.EVENT_TYPE);
         assertThat(rows.getFirst().getStatus()).isEqualTo(OutboxEventRepository.OutboxStatus.PENDING.name());
         assertThat(rows.getFirst().getPayload()).contains(journalEntryId.toString());
 
-        outboxPoller.poll();
+        TenantContext.enableBypass();
+        try {
+            outboxPoller.poll();
+        } finally {
+            TenantContext.clear();
+        }
 
         RecordingEventPublisher recording = (RecordingEventPublisher) eventPublisher;
         assertThat(recording.published).hasSize(1);
         assertThat(recording.published.getFirst().eventType()).isEqualTo(TransactionPosted.EVENT_TYPE);
         assertThat(recording.published.getFirst().aggregateId()).isEqualTo(journalEntryId);
 
-        OutboxEventEntity published = springDataOutboxEventRepository.findById(rows.getFirst().getId()).orElseThrow();
-        assertThat(published.getStatus()).isEqualTo(OutboxEventRepository.OutboxStatus.PUBLISHED.name());
-        assertThat(published.getPublishedAt()).isNotNull();
-        assertThat(outboxEventRepository.claimPending(10)).isEmpty();
+        TenantContext.enableBypass();
+        try {
+            OutboxEventEntity published = springDataOutboxEventRepository.findById(rows.getFirst().getId()).orElseThrow();
+            assertThat(published.getStatus()).isEqualTo(OutboxEventRepository.OutboxStatus.PUBLISHED.name());
+            assertThat(published.getPublishedAt()).isNotNull();
+            assertThat(outboxEventRepository.claimPending(10)).isEmpty();
+        } finally {
+            TenantContext.clear();
+        }
+    }
+
+    private UUID createTenant(String name) throws Exception {
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "name", name,
+                "type", "STANDALONE"
+        ));
+        MvcResult result = mockMvc.perform(post("/api/v1/tenants")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("tenantId").asText());
     }
 
     private UUID createAccount(UUID tenantId, String ownerRef) throws Exception {
@@ -179,3 +210,4 @@ class OutboxIntegrationTest {
         return UUID.fromString(json.get("accountId").asText());
     }
 }
+                    

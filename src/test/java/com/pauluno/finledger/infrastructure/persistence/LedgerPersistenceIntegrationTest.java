@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,9 +22,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import com.pauluno.finledger.application.dto.CreateTenantCommand;
+import com.pauluno.finledger.application.port.in.CreateTenantUseCase;
 import com.pauluno.finledger.application.port.out.AccountBalanceRepository;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
+import com.pauluno.finledger.application.tenant.TenantContext;
 import com.pauluno.finledger.domain.model.AccountBalance;
 import com.pauluno.finledger.domain.model.AccountStatus;
 import com.pauluno.finledger.domain.model.AccountType;
@@ -58,8 +62,10 @@ class LedgerPersistenceIntegrationTest {
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.username", () -> "finledger_app");
+        registry.add("spring.datasource.password", () -> "finledger");
+        registry.add("spring.flyway.user", POSTGRES::getUsername);
+        registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("spring.flyway.enabled", () -> "true");
         registry.add("spring.data.redis.host", REDIS::getHost);
@@ -78,9 +84,18 @@ class LedgerPersistenceIntegrationTest {
     @Autowired
     private AccountBalanceRepository accountBalanceRepository;
 
+    @Autowired
+    private CreateTenantUseCase createTenantUseCase;
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
+
     @Test
     void should_persist_accounts_journal_and_update_balances() {
-        UUID tenantId = UUID.randomUUID();
+        UUID tenantId = provisionStandalone("persist-1");
+        TenantContext.set(tenantId);
         UUID fromId = UUID.randomUUID();
         UUID toId = UUID.randomUUID();
 
@@ -135,7 +150,8 @@ class LedgerPersistenceIntegrationTest {
 
     @Test
     void should_reject_duplicate_idempotency_key_for_tenant() {
-        UUID tenantId = UUID.randomUUID();
+        UUID tenantId = provisionStandalone("persist-2");
+        TenantContext.set(tenantId);
         UUID fromId = UUID.randomUUID();
         UUID toId = UUID.randomUUID();
 
@@ -177,5 +193,9 @@ class LedgerPersistenceIntegrationTest {
                 .get()
                 .extracting(JournalEntry::id)
                 .isEqualTo(first.id());
+    }
+
+    private UUID provisionStandalone(String name) {
+        return createTenantUseCase.execute(new CreateTenantCommand(name, "STANDALONE", null)).tenantId();
     }
 }

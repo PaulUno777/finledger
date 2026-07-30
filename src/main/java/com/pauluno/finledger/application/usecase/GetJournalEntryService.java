@@ -9,15 +9,21 @@ import com.pauluno.finledger.application.dto.PostTransactionResult;
 import com.pauluno.finledger.application.exception.ResourceNotFoundException;
 import com.pauluno.finledger.application.port.in.GetJournalEntryUseCase;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
+import com.pauluno.finledger.application.port.out.TenantRepository;
 import com.pauluno.finledger.domain.model.JournalEntry;
 
 @Service
 public class GetJournalEntryService implements GetJournalEntryUseCase {
 
     private final JournalEntryRepository journalEntryRepository;
+    private final TenantRepository tenantRepository;
 
-    public GetJournalEntryService(JournalEntryRepository journalEntryRepository) {
+    public GetJournalEntryService(
+            JournalEntryRepository journalEntryRepository,
+            TenantRepository tenantRepository
+    ) {
         this.journalEntryRepository = journalEntryRepository;
+        this.tenantRepository = tenantRepository;
     }
 
     @Override
@@ -26,7 +32,8 @@ public class GetJournalEntryService implements GetJournalEntryUseCase {
         JournalEntry entry = journalEntryRepository.findById(journalEntryId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Journal entry not found: " + journalEntryId));
-        if (!entry.tenantId().equals(tenantId)) {
+        // Path tenant must be the entry's tenant or an ancestor (AGGREGATOR → SUB_MERCHANT).
+        if (!tenantRepository.findDescendantIds(tenantId).contains(entry.tenantId())) {
             throw new ResourceNotFoundException("Journal entry not found: " + journalEntryId);
         }
         return PostTransactionService.toResult(entry, false);
