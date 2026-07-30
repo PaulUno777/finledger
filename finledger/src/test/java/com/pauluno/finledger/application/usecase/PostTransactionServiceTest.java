@@ -22,6 +22,7 @@ import com.pauluno.finledger.application.port.out.AccountBalanceRepository;
 import com.pauluno.finledger.application.port.out.IdempotencyStore;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
+import com.pauluno.finledger.application.port.out.NoOpLedgerMetrics;
 import com.pauluno.finledger.application.port.out.OutboxWriter;
 import com.pauluno.finledger.application.event.TransactionPosted;
 import com.pauluno.finledger.domain.model.AccountBalance;
@@ -59,7 +60,8 @@ class PostTransactionServiceTest {
         RiskGateService riskGate = new RiskGateService(
                 request -> com.pauluno.finledger.application.port.out.TransactionRiskCheckPort.RiskDecision.allow(),
                 new EmptyFraudConfigRepository(),
-                new InMemoryRiskDecisionRepository()
+                new InMemoryRiskDecisionRepository(),
+                new NoOpLedgerMetrics()
         );
         service = new PostTransactionService(
                 idempotencyStore,
@@ -70,7 +72,8 @@ class PostTransactionServiceTest {
                 (tenantId, pair, asOf) -> {
                     throw new UnsupportedOperationException("FX not used in these tests");
                 },
-                riskGate
+                riskGate,
+                new NoOpLedgerMetrics()
         );
 
         tenantId = UUID.randomUUID();
@@ -114,7 +117,8 @@ class PostTransactionServiceTest {
                         90,
                         List.of("max-amount")),
                 new EmptyFraudConfigRepository(),
-                new InMemoryRiskDecisionRepository()
+                new InMemoryRiskDecisionRepository(),
+                new NoOpLedgerMetrics()
         );
         service = new PostTransactionService(
                 idempotencyStore,
@@ -125,7 +129,8 @@ class PostTransactionServiceTest {
                 (tenantId, pair, asOf) -> {
                     throw new UnsupportedOperationException("FX not used");
                 },
-                denying
+                denying,
+                new NoOpLedgerMetrics()
         );
 
         assertThatThrownBy(() -> service.execute(transferCommand("key-deny", "tx-deny", "-10.00", "10.00")))

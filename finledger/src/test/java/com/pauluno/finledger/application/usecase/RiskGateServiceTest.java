@@ -14,6 +14,7 @@ import com.pauluno.finledger.application.exception.BusinessRuleException;
 import com.pauluno.finledger.application.fraud.FraudFailMode;
 import com.pauluno.finledger.application.fraud.RiskOutcome;
 import com.pauluno.finledger.application.fraud.TenantFraudConfig;
+import com.pauluno.finledger.application.port.out.NoOpLedgerMetrics;
 import com.pauluno.finledger.application.port.out.RiskDecisionRepository;
 import com.pauluno.finledger.application.port.out.TenantFraudConfigRepository;
 import com.pauluno.finledger.application.port.out.TransactionRiskCheckPort;
@@ -28,7 +29,8 @@ class RiskGateServiceTest {
                     throw new RuntimeException("boom");
                 },
                 emptyConfigs(),
-                capturingDecisions()
+                capturingDecisions(),
+                new NoOpLedgerMetrics()
         );
 
         TransactionRiskCheckPort.RiskDecision decision = gate.assessAndEnforce(
@@ -47,7 +49,8 @@ class RiskGateServiceTest {
                 },
                 fixedConfig(new TenantFraudConfig(
                         tenantId, true, FraudFailMode.CLOSED, null, 0, 3600, null, List.of())),
-                capturingDecisions()
+                capturingDecisions(),
+                new NoOpLedgerMetrics()
         );
 
         assertThatThrownBy(() -> gate.assessAndEnforce(

@@ -29,6 +29,18 @@ management:
     health:
       show-details: when_authorized
 
+  tracing:
+    sampling:
+      probability: 1.0
+
+  observations:
+    key-values:
+      application: ${spring.application.name}
+
+  # Set OTEL_EXPORTER_OTLP_ENDPOINT or
+  # management.opentelemetry.tracing.export.otlp.endpoint to enable OTLP export.
+  # Leave unset for local Prometheus-only (ADR-013).
+
 logging:
   level:
     root: INFO

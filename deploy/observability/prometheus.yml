@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: finledger
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # Compose app service (profile with-app)
+      - targets: ["app:8081"]
+        labels:
+          instance: compose-app
+      # Host process / spring-boot:run with MANAGEMENT_SERVER_PORT=8081
+      - targets: ["host.docker.internal:8081"]
+        labels:
+          instance: host
