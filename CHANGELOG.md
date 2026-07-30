@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- CI/CD + Docker Hub (FL-140): multi-stage `Dockerfile`, Compose `with-app` profile, CI Docker build (no push), tag-triggered multi-arch Hub release + GitHub Release ([ADR-012](docs/adr/ADR-012-docker-distribution.md))
 - Fraud module (FL-130): `TransactionRiskCheckPort`, in-box rules behind `FINLEDGER_FRAUD_ENABLED`, async HOLD on `TransactionPosted`, `/api/v1/tenants/{id}/fraud` config/decisions
 - CLI provisioning module (FL-120): multi-module Maven (`finledger` + `finledger-cli`), Picocli/JLine HTTP client of `/api/v1`, no-tenant boot INFO hint
 - Payment rails (FL-110): `RailAdapter` + manual clearing, PENDING→SETTLED journals via `RAIL_CLEARING`, reconciliation breaks, inbound HMAC settlement webhook

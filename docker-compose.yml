@@ -1,10 +1,11 @@
-# Local stack for FinLedger (Postgres + Redis).
+# Local stack for FinLedger (Postgres + Redis; optional app via profile with-app).
 # App config layers: image/defaults → optional file mount → env vars.
-# To override Spring config from the host:
-#   mkdir -p ./config && edit ./config/application.yml
-#   then run the app with SPRING_CONFIG_ADDITIONAL_LOCATION=optional:file:./config/
+#
+#   docker compose up -d
+#   docker compose --profile with-app up -d --build   # needs OIDC in .env
 #
 # Dev credentials below are for local evaluation only — never reuse in production.
+# Health (app image): GET http://localhost:8081/actuator/health
 
 services:
 
@@ -31,7 +32,6 @@ services:
 
   redis:
     image: redis:8-alpine
-
     container_name: finledger-redis
 
     ports:
@@ -45,6 +45,37 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Start with: docker compose --profile with-app up -d --build
+  # Put OIDC issuer (or JWKS URI) in a project `.env` file, e.g.
+  #   SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
+  app:
+    profiles: ["with-app"]
+    build: .
+    image: finledger:local
+    container_name: finledger-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/finledger
+      DB_USERNAME: finledger_app
+      DB_PASSWORD: finledger
+      SPRING_FLYWAY_USER: finledger
+      SPRING_FLYWAY_PASSWORD: finledger
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    volumes:
+      - ./config:/workspace/config:ro
 
 volumes:
   postgres_data:
