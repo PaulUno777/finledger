@@ -118,6 +118,7 @@ public class AuditableAspect {
 
     private static UUID resolveResourceId(Object result, Object[] args) {
         return invokeUuid(result, "journalEntryId")
+                .or(() -> invokeUuid(result, "instructionId"))
                 .or(() -> invokeUuid(result, "accountId"))
                 .or(() -> invokeUuid(result, "tenantId"))
                 .or(() -> {
