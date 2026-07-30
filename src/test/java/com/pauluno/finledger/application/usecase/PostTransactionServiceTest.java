@@ -61,7 +61,10 @@ class PostTransactionServiceTest {
                 accountRepository,
                 balanceRepository,
                 journalEntryRepository,
-                outboxWriter
+                outboxWriter,
+                (tenantId, pair, asOf) -> {
+                    throw new UnsupportedOperationException("FX not used in these tests");
+                }
         );
 
         tenantId = UUID.randomUUID();
