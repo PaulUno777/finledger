@@ -2,7 +2,7 @@ package com.pauluno.finledger.application.dto;
 
 import java.util.UUID;
 
-public record CreateLedgerAccountResult(
+public record LedgerAccountResult(
         UUID accountId,
         UUID tenantId,
         String ownerRef,
