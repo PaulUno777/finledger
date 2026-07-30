@@ -20,3 +20,8 @@ spring:
 
   flyway:
     enabled: true
+
+management:
+  tracing:
+    sampling:
+      probability: 0.1

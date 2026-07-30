@@ -25,16 +25,21 @@ import com.pauluno.finledger.application.port.out.AuditLogWriter;
 import com.pauluno.finledger.application.tenant.TenantContext;
 import com.pauluno.finledger.domain.audit.AuditHashChain;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+
 @Aspect
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class AuditableAspect {
 
     private final AuditLogWriter auditLogWriter;
+    private final Tracer tracer;
     private final ObjectMapper objectMapper;
 
-    public AuditableAspect(AuditLogWriter auditLogWriter) {
+    public AuditableAspect(AuditLogWriter auditLogWriter, Tracer tracer) {
         this.auditLogWriter = auditLogWriter;
+        this.tracer = tracer;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
@@ -75,8 +80,8 @@ public class AuditableAspect {
             throw new IllegalStateException("Failed to serialize audit payload", e);
         }
 
-        String traceId = TraceContext.get().map(TraceContext.Parsed::traceId).orElse(null);
-        String spanId = TraceContext.get().map(TraceContext.Parsed::spanId).orElse(null);
+        String traceId = resolveTraceId();
+        String spanId = resolveSpanId();
 
         auditLogWriter.append(new AuditRecord(
                 tenantId,
@@ -89,6 +94,24 @@ public class AuditableAspect {
                 traceId,
                 spanId
         ));
+    }
+
+    private String resolveTraceId() {
+        Span span = tracer.currentSpan();
+        if (span != null && span.context() != null && span.context().traceId() != null
+                && !span.context().traceId().isBlank()) {
+            return span.context().traceId();
+        }
+        return TraceContext.get().map(TraceContext.Parsed::traceId).orElse(null);
+    }
+
+    private String resolveSpanId() {
+        Span span = tracer.currentSpan();
+        if (span != null && span.context() != null && span.context().spanId() != null
+                && !span.context().spanId().isBlank()) {
+            return span.context().spanId();
+        }
+        return TraceContext.get().map(TraceContext.Parsed::spanId).orElse(null);
     }
 
     private static String resolveActor() {
