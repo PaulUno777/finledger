@@ -69,6 +69,7 @@ the plan §18.1; full image contract arrives in FL-140).
 | `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET` | HMAC secret for inbound rail settlement webhooks |
 | `FINLEDGER_BASE_URL` | CLI only — FinLedger API base URL (default `http://localhost:8080`) |
 | `FINLEDGER_TOKEN` | CLI only — Bearer JWT for `/api/v1` (needs `ledger:admin` to create tenants) |
+| `FINLEDGER_FRAUD_ENABLED` | Enable in-box rule-based risk check (`true` / default `false`) |
 | `SERVER_PORT` | HTTP port (default `8080`) |
 
 Production profile (`application-prod.yml`) expects secrets via env (`DB_URL`,

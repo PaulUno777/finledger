@@ -32,3 +32,7 @@ management:
 logging:
   level:
     root: INFO
+
+finledger:
+  fraud:
+    enabled: false

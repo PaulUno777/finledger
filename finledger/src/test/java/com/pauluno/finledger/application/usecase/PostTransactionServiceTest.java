@@ -56,6 +56,11 @@ class PostTransactionServiceTest {
         balanceRepository = new InMemoryAccountBalanceRepository();
         journalEntryRepository = new InMemoryJournalEntryRepository(balanceRepository, accountRepository);
         outboxWriter = new InMemoryOutboxWriter();
+        RiskGateService riskGate = new RiskGateService(
+                request -> com.pauluno.finledger.application.port.out.TransactionRiskCheckPort.RiskDecision.allow(),
+                new EmptyFraudConfigRepository(),
+                new InMemoryRiskDecisionRepository()
+        );
         service = new PostTransactionService(
                 idempotencyStore,
                 accountRepository,
@@ -64,7 +69,8 @@ class PostTransactionServiceTest {
                 outboxWriter,
                 (tenantId, pair, asOf) -> {
                     throw new UnsupportedOperationException("FX not used in these tests");
-                }
+                },
+                riskGate
         );
 
         tenantId = UUID.randomUUID();
@@ -97,6 +103,35 @@ class PostTransactionServiceTest {
         assertThat(replay.journalEntryId()).isEqualTo(first.journalEntryId());
         assertThat(journalEntryRepository.entries).hasSize(1);
         assertThat(outboxWriter.messages).hasSize(1);
+    }
+
+    @Test
+    void should_reject_when_risk_check_denies() {
+        RiskGateService denying = new RiskGateService(
+                request -> new com.pauluno.finledger.application.port.out.TransactionRiskCheckPort.RiskDecision(
+                        com.pauluno.finledger.application.fraud.RiskOutcome.DENY,
+                        "AMOUNT_THRESHOLD",
+                        90,
+                        List.of("max-amount")),
+                new EmptyFraudConfigRepository(),
+                new InMemoryRiskDecisionRepository()
+        );
+        service = new PostTransactionService(
+                idempotencyStore,
+                accountRepository,
+                balanceRepository,
+                journalEntryRepository,
+                outboxWriter,
+                (tenantId, pair, asOf) -> {
+                    throw new UnsupportedOperationException("FX not used");
+                },
+                denying
+        );
+
+        assertThatThrownBy(() -> service.execute(transferCommand("key-deny", "tx-deny", "-10.00", "10.00")))
+                .isInstanceOf(com.pauluno.finledger.application.exception.BusinessRuleException.class)
+                .hasMessageContaining("AMOUNT_THRESHOLD");
+        assertThat(journalEntryRepository.entries).isEmpty();
     }
 
     @Test
@@ -302,6 +337,58 @@ class PostTransactionServiceTest {
             return entries.stream()
                     .filter(e -> e.tenantId().equals(tenantId) && e.idempotencyKey().equals(key))
                     .findFirst();
+        }
+    }
+
+    private static final class EmptyFraudConfigRepository
+            implements com.pauluno.finledger.application.port.out.TenantFraudConfigRepository {
+        @Override
+        public com.pauluno.finledger.application.fraud.TenantFraudConfig save(
+                com.pauluno.finledger.application.fraud.TenantFraudConfig config) {
+            return config;
+        }
+
+        @Override
+        public Optional<com.pauluno.finledger.application.fraud.TenantFraudConfig> findByTenantId(UUID tenantId) {
+            return Optional.empty();
+        }
+    }
+
+    private static final class InMemoryRiskDecisionRepository
+            implements com.pauluno.finledger.application.port.out.RiskDecisionRepository {
+        private final List<RiskDecisionRecord> rows = new java.util.ArrayList<>();
+
+        @Override
+        public RiskDecisionRecord save(RiskDecisionRecord record) {
+            rows.removeIf(r -> r.id().equals(record.id()));
+            rows.add(record);
+            return record;
+        }
+
+        @Override
+        public long countSyncSince(UUID tenantId, java.time.Instant since) {
+            return rows.stream()
+                    .filter(r -> r.tenantId().equals(tenantId) && "SYNC".equals(r.phase()))
+                    .filter(r -> r.outcome() != com.pauluno.finledger.application.fraud.RiskOutcome.DENY)
+                    .filter(r -> !r.createdAt().isBefore(since))
+                    .count();
+        }
+
+        @Override
+        public Optional<RiskDecisionRecord> findAsyncHoldForSource(UUID tenantId, UUID sourceJournalEntryId) {
+            return rows.stream()
+                    .filter(r -> r.tenantId().equals(tenantId)
+                            && sourceJournalEntryId.equals(r.sourceJournalEntryId())
+                            && r.holdJournalEntryId() != null)
+                    .findFirst();
+        }
+
+        @Override
+        public List<RiskDecisionRecord> findByTransactionReference(UUID tenantId, String transactionReference) {
+            return rows.stream()
+                    .filter(r -> r.tenantId().equals(tenantId)
+                            && r.transactionReference().equals(transactionReference))
+                    .toList();
         }
     }
 }
