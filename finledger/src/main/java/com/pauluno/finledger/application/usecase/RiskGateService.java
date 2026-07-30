@@ -12,6 +12,7 @@ import com.pauluno.finledger.application.exception.BusinessRuleException;
 import com.pauluno.finledger.application.fraud.FraudFailMode;
 import com.pauluno.finledger.application.fraud.RiskOutcome;
 import com.pauluno.finledger.application.fraud.TenantFraudConfig;
+import com.pauluno.finledger.application.port.out.LedgerMetrics;
 import com.pauluno.finledger.application.port.out.RiskDecisionRepository;
 import com.pauluno.finledger.application.port.out.TenantFraudConfigRepository;
 import com.pauluno.finledger.application.port.out.TransactionRiskCheckPort;
@@ -29,15 +30,18 @@ public class RiskGateService {
     private final TransactionRiskCheckPort riskCheckPort;
     private final TenantFraudConfigRepository fraudConfigRepository;
     private final RiskDecisionRepository riskDecisionRepository;
+    private final LedgerMetrics ledgerMetrics;
 
     public RiskGateService(
             TransactionRiskCheckPort riskCheckPort,
             TenantFraudConfigRepository fraudConfigRepository,
-            RiskDecisionRepository riskDecisionRepository
+            RiskDecisionRepository riskDecisionRepository,
+            LedgerMetrics ledgerMetrics
     ) {
         this.riskCheckPort = riskCheckPort;
         this.fraudConfigRepository = fraudConfigRepository;
         this.riskDecisionRepository = riskDecisionRepository;
+        this.ledgerMetrics = ledgerMetrics;
     }
 
     /**
@@ -65,6 +69,7 @@ public class RiskGateService {
         persistSync(request, decision, null);
 
         if (decision.outcome() == RiskOutcome.DENY) {
+            ledgerMetrics.riskDenied(decision.reasonCode());
             throw new BusinessRuleException(
                     "RISK_DENIED",
                     "Transaction denied by risk check: " + decision.reasonCode());
