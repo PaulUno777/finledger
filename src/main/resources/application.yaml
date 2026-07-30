@@ -6,15 +6,14 @@ spring:
   profiles:
     active: local
 
-  # Temporary until FL-100 (OIDC). SecurityFilterChain still permitAll for /api/**.
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration
-
   # Layered config (plan §18.1): defaults here → optional external file → env vars.
   # Mount or place overrides under ./config (local) or /workspace/config (container).
   config:
     additional-location: optional:file:./config/,optional:file:/workspace/config/
+
+  # OIDC Resource Server (FL-100). Set via env:
+  # SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+  # or SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
 
 server:
   port: 8080

@@ -1,5 +1,10 @@
 # Dev-only profile for local IDE / swagger runs against docker-compose.
 # Credentials are local evaluation only — never reuse in production.
+#
+# OIDC (FL-100): set an issuer or JWKS URI before starting the app, e.g.
+#   export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
+# The API requires Bearer JWTs (RS256/ES256) with scopes ledger:read|write|admin
+# and claim tenant_id matching the path tenant for tenant-scoped routes.
 
 spring:
 
