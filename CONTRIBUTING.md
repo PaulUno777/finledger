@@ -40,13 +40,16 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## Local setup
 
+The repo is a **multi-module Maven reactor** (`finledger` server + `finledger-cli`).
+
 ```bash
 docker compose up -d
-./mvnw test
-./mvnw verify
+./mvnw -B test          # all modules from the reactor root
+./mvnw -B verify
+./mvnw -pl finledger spring-boot:run
 ```
 
-Java 21 is required.
+Java 21 is required. See [docs/development.md](docs/development.md) for module-scoped commands.
 
 ## Architecture rules
 

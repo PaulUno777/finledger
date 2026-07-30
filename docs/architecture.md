@@ -23,6 +23,9 @@ framework-free and vendor-agnostic.
 └─────────────────────────────────────────────────────────┘
 ```
 
+Maven layout (FL-120): server sources live under `finledger/`; the provisioning CLI
+is a separate module `finledger-cli/` (HTTP client of `/api/v1`, see ADR-010).
+
 ## Non-negotiables
 
 - Append-only journal; corrections via linked reverse entries
