@@ -63,6 +63,9 @@ class SecurityIntegrationTest {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
         registry.add("finledger.outbox.poll-interval-ms", () -> "3600000");
+        // Boot test customizer disables metrics export; re-enable Prometheus scrape endpoint.
+        registry.add("management.defaults.metrics.export.enabled", () -> "true");
+        registry.add("management.prometheus.metrics.export.enabled", () -> "true");
     }
 
     @Autowired
@@ -92,6 +95,12 @@ class SecurityIntegrationTest {
     @Test
     void should_allow_health_without_auth() throws Exception {
         mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void should_allow_prometheus_without_auth() throws Exception {
+        mockMvc.perform(get("/actuator/prometheus"))
                 .andExpect(status().isOk());
     }
 

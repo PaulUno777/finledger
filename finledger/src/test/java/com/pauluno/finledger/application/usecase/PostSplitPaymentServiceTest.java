@@ -22,6 +22,7 @@ import com.pauluno.finledger.application.port.out.AccountBalanceRepository;
 import com.pauluno.finledger.application.port.out.IdempotencyStore;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
+import com.pauluno.finledger.application.port.out.NoOpLedgerMetrics;
 import com.pauluno.finledger.application.port.out.OutboxWriter;
 import com.pauluno.finledger.application.port.out.SplitPlanResolver;
 import com.pauluno.finledger.application.port.out.SplitRuleSetRepository;
@@ -66,7 +67,8 @@ class PostSplitPaymentServiceTest {
         RiskGateService riskGate = new RiskGateService(
                 request -> com.pauluno.finledger.application.port.out.TransactionRiskCheckPort.RiskDecision.allow(),
                 new EmptyFraudConfigRepository(),
-                new AllowAllRiskDecisionRepository()
+                new AllowAllRiskDecisionRepository(),
+                new NoOpLedgerMetrics()
         );
         service = new PostSplitPaymentService(
                 idempotencyStore,

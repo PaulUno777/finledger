@@ -73,12 +73,23 @@ docker compose up -d
 
 # Full stack (build image + app). Put OIDC issuer in `.env` first.
 docker compose --profile with-app up -d --build
+
+# Optional Prometheus + Grafana (see deploy/observability/)
+docker compose --profile with-app --profile observability up -d --build
 ```
 
-Production profile (`application-prod.yml`) also accepts `DB_URL` / `DB_USERNAME` /
-`DB_PASSWORD` / `REDIS_HOST` / `REDIS_PORT`, plus `SPRING_FLYWAY_USER` /
-`SPRING_FLYWAY_PASSWORD` so Flyway can run as the Postgres superuser while the
-app uses `finledger_app` (RLS).
+### Observability (FL-150)
+
+| Item | Contract |
+|------|----------|
+| Traces | Micrometer Tracing + OpenTelemetry (W3C `traceparent`) |
+| OTLP | Set `OTEL_EXPORTER_OTLP_ENDPOINT` / `management.opentelemetry.tracing.export.otlp.endpoint` to export; unset = no export |
+| Metrics | `GET /actuator/prometheus` (public; restrict management port in prod) |
+| Logs | Pattern + MDC locally; JSON under `prod` / `json-logs` |
+| Sampling | `1.0` default; `0.1` in `prod` |
+| Compose | Profile `observability` → Prometheus `:9090`, Grafana `:3000` (admin/admin) |
+
+See [ADR-013](adr/ADR-013-observability.md).
 
 ## Common environment variables
 
@@ -96,6 +107,7 @@ app uses `finledger_app` (RLS).
 | `SPRING_CONFIG_ADDITIONAL_LOCATION` | Optional extra config locations |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (preferred) |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | JWKS URI alternative to issuer |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional OTLP traces endpoint (maps to `management.opentelemetry.tracing.export.otlp.endpoint`) |
 | `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET` | HMAC secret for inbound rail settlement webhooks |
 | `FINLEDGER_BASE_URL` | CLI only — FinLedger API base URL (default `http://localhost:8080`) |
 | `FINLEDGER_TOKEN` | CLI only — Bearer JWT for `/api/v1` (needs `ledger:admin` to create tenants) |

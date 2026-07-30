@@ -65,6 +65,13 @@ Health: `GET http://localhost:8081/actuator/health` (container) or
 
 Published images (after a `v*.*.*` tag): `${DOCKERHUB_USERNAME}/finledger:<semver>`.
 
+Observability (optional Compose profile — [ADR-013](docs/adr/ADR-013-observability.md)):
+
+```bash
+docker compose --profile with-app --profile observability up -d --build
+# Prometheus :9090 · Grafana :3000 (admin/admin) · /actuator/prometheus on :8081
+```
+
 Provisioning CLI (separate module — see [ADR-010](docs/adr/ADR-010-cli-http-client-module.md)):
 
 ```bash
