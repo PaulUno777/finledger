@@ -5,7 +5,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://localhost:5432/finledger
-    username: finledger
+    # Non-superuser so FORCE RLS applies (POSTGRES_USER is a superuser and bypasses RLS).
+    username: finledger_app
     password: finledger
 
   jpa:
@@ -14,6 +15,8 @@ spring:
 
   flyway:
     enabled: true
+    user: finledger
+    password: finledger
 
   data:
     redis:

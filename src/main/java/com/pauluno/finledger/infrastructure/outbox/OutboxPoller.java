@@ -2,7 +2,6 @@ package com.pauluno.finledger.infrastructure.outbox;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,7 +22,6 @@ public class OutboxPoller {
         this.eventPublisher = eventPublisher;
     }
 
-    @Scheduled(fixedDelayString = "${finledger.outbox.poll-interval-ms:1000}")
     @Transactional
     public void poll() {
         var pending = outboxEventRepository.claimPending(BATCH_SIZE);
