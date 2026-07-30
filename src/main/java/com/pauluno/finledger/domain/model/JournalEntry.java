@@ -177,6 +177,36 @@ public final class JournalEntry {
         );
     }
 
+    /**
+     * Creates a linked REFUND entry with policy-computed postings (plan §5.3).
+     */
+    public static JournalEntry createRefund(
+            UUID tenantId,
+            IdempotencyKey idempotencyKey,
+            TransactionReference transactionReference,
+            List<Posting> postings,
+            Map<UUID, LedgerAccount> accounts,
+            Map<UUID, AccountBalance> balancesBefore,
+            Instant occurredAt,
+            UUID originalEntryId
+    ) {
+        Objects.requireNonNull(originalEntryId, "originalEntryId");
+        DoubleEntryValidator.validate(postings, accounts, balancesBefore);
+        return new JournalEntry(
+                UUID.randomUUID(),
+                tenantId,
+                idempotencyKey,
+                transactionReference,
+                JournalEntryType.REFUND,
+                postings,
+                occurredAt,
+                originalEntryId,
+                null,
+                null,
+                null
+        );
+    }
+
     public UUID id() {
         return id;
     }
