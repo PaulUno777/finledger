@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -26,11 +27,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import com.pauluno.finledger.support.IntegrationTestSecurityConfig;
+import static com.pauluno.finledger.support.TestJwtAuth.adminJwt;
+import static com.pauluno.finledger.support.TestJwtAuth.tenantReadWriteJwt;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
+@Import(IntegrationTestSecurityConfig.class)
 @AutoConfigureMockMvc
 @Testcontainers
 @Tag("integration")
@@ -61,8 +66,6 @@ class FxProviderIntegrationTest {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
         registry.add("finledger.outbox.poll-interval-ms", () -> "3600000");
-        registry.add("spring.autoconfigure.exclude",
-                () -> "org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration");
     }
 
     @Autowired
@@ -75,6 +78,7 @@ class FxProviderIntegrationTest {
         UUID tenantId = createTenant("fx-shop");
 
         mockMvc.perform(put("/api/v1/tenants/{tenantId}/fx/config", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -87,6 +91,7 @@ class FxProviderIntegrationTest {
                 .andExpect(jsonPath("$.spreadBps").value(100));
 
         mockMvc.perform(put("/api/v1/tenants/{tenantId}/fx/overrides", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -100,6 +105,7 @@ class FxProviderIntegrationTest {
                 .andExpect(status().isNoContent());
 
         MvcResult rateResult = mockMvc.perform(get("/api/v1/tenants/{tenantId}/fx/rates", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .param("base", "USD")
                         .param("quote", "EUR"))
                 .andExpect(status().isOk())
@@ -127,6 +133,7 @@ class FxProviderIntegrationTest {
                 """.formatted(fromId, toId);
 
         mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .header("Idempotency-Key", "fx-" + UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
@@ -135,6 +142,7 @@ class FxProviderIntegrationTest {
 
     private UUID createTenant(String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/tenants")
+                        .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "name", name,
@@ -148,6 +156,7 @@ class FxProviderIntegrationTest {
 
     private UUID createAccount(UUID tenantId, String ownerRef) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/tenants/{tenantId}/accounts", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
                                 "ownerRef", ownerRef,

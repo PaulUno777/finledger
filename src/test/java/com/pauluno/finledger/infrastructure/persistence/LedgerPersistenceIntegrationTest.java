@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -22,6 +23,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import com.pauluno.finledger.support.IntegrationTestSecurityConfig;
 import com.pauluno.finledger.application.dto.CreateTenantCommand;
 import com.pauluno.finledger.application.port.in.CreateTenantUseCase;
 import com.pauluno.finledger.application.port.out.AccountBalanceRepository;
@@ -40,6 +42,7 @@ import com.pauluno.finledger.domain.model.SettlementStatus;
 import com.pauluno.finledger.domain.model.TransactionReference;
 
 @SpringBootTest
+@Import(IntegrationTestSecurityConfig.class)
 @Testcontainers
 @Tag("integration")
 @SuppressWarnings("resource")
@@ -71,8 +74,6 @@ class LedgerPersistenceIntegrationTest {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
         registry.add("finledger.outbox.poll-interval-ms", () -> "3600000");
-        registry.add("spring.autoconfigure.exclude",
-                () -> "org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration");
     }
 
     @Autowired
