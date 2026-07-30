@@ -5,7 +5,7 @@ no interactive wizard at boot (wizards block health checks and orchestrated depl
 
 ## Resolution order (highest priority last wins)
 
-1. **Embedded defaults** — `src/main/resources/application.yaml` (and profile files)
+1. **Embedded defaults** — `finledger/src/main/resources/application.yaml` (and profile files)
 2. **Optional external file** — mount or place config under a directory listed in
    `spring.config.additional-location` (prefixed with `optional:` so absence is fine)
 3. **Environment variables** — relaxed binding (`SPRING_DATASOURCE_URL`, etc.)
@@ -47,7 +47,7 @@ the local volume: `docker compose down -v && docker compose up -d`.
 mkdir -p ./config
 # edit ./config/application.yml
 export SPRING_CONFIG_ADDITIONAL_LOCATION=optional:file:./config/
-./mvnw spring-boot:run
+./mvnw -pl finledger spring-boot:run
 ```
 
 In containers, the conventional mount is `/workspace/config/` (see Docker notes in

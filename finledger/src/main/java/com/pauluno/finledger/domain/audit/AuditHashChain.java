@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
@@ -23,7 +24,17 @@ public final class AuditHashChain {
     }
 
     /**
+     * Aligns with Postgres {@code TIMESTAMPTZ} microsecond precision so hashes survive
+     * a write/read round-trip (nanoseconds from {@code Instant.now()} would otherwise
+     * break integrity checks on Linux clocks).
+     */
+    public static Instant truncateToMicros(Instant occurredAt) {
+        return Objects.requireNonNull(occurredAt, "occurredAt").truncatedTo(ChronoUnit.MICROS);
+    }
+
+    /**
      * {@code current_hash = SHA256(prev_hash + payload_hash + timestamp + actor)}.
+     * Timestamp is truncated to microseconds before hashing.
      */
     public static String currentHash(
             String prevHash,
@@ -35,7 +46,7 @@ public final class AuditHashChain {
         Objects.requireNonNull(payloadHash, "payloadHash");
         Objects.requireNonNull(occurredAt, "occurredAt");
         Objects.requireNonNull(actor, "actor");
-        return sha256(prevHash + payloadHash + occurredAt.toString() + actor);
+        return sha256(prevHash + payloadHash + truncateToMicros(occurredAt).toString() + actor);
     }
 
     public static AuditChainVerification verify(List<AuditChainLink> links) {

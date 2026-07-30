@@ -45,4 +45,5 @@ Optional vendor adapters are preferred as conditional modules behind ports
 
 - `docs/PLAN_LEDGER_FINTECH.md` §2, §21
 - `docs/architecture.md`
-- ArchUnit rules under `src/test/java/.../architecture/`
+- ArchUnit rules under `finledger/src/test/java/.../architecture/`
+- Provisioning CLI is a separate Maven module (`finledger-cli`); see [ADR-010](ADR-010-cli-http-client-module.md)

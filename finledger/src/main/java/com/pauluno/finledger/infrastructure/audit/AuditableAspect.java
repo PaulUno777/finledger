@@ -23,6 +23,7 @@ import com.pauluno.finledger.application.audit.AuditRecord;
 import com.pauluno.finledger.application.audit.Auditable;
 import com.pauluno.finledger.application.port.out.AuditLogWriter;
 import com.pauluno.finledger.application.tenant.TenantContext;
+import com.pauluno.finledger.domain.audit.AuditHashChain;
 
 @Aspect
 @Component
@@ -79,7 +80,7 @@ public class AuditableAspect {
 
         auditLogWriter.append(new AuditRecord(
                 tenantId,
-                Instant.now(),
+                AuditHashChain.truncateToMicros(Instant.now()),
                 resolveActor(),
                 auditable.action(),
                 auditable.resourceType(),

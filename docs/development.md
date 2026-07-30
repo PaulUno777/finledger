@@ -40,7 +40,7 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-090 | Audit trail | `feature/FL-090-audit-trail` | done |
 | FL-100 | Security (OIDC, TLS contract) | `feature/FL-100-security` | done |
 | FL-110 | Payment rails | `feature/FL-110-payment-rails` | done |
-| FL-120 | CLI module | `feature/FL-120-cli` | done (pending merge) |
+| FL-120 | CLI module | `feature/FL-120-cli` | done |
 | FL-130 | Fraud module (optional) | `feature/FL-130-fraud-module` | pending |
 | FL-140 | CI/CD + Docker Hub | `feature/FL-140-cicd-docker` | pending |
 | FL-150 | Observability | `feature/FL-150-observability` | pending |
