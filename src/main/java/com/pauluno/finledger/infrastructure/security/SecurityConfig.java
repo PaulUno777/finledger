@@ -29,6 +29,8 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/tenants/*/rails/webhooks/settlement")
+                        .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants").hasAuthority(SCOPE_LEDGER_ADMIN)
                         .requestMatchers(HttpMethod.GET, "/api/**")
                         .hasAnyAuthority(SCOPE_LEDGER_READ, SCOPE_LEDGER_WRITE, SCOPE_LEDGER_ADMIN)
