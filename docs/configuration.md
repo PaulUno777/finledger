@@ -50,8 +50,35 @@ export SPRING_CONFIG_ADDITIONAL_LOCATION=optional:file:./config/
 ./mvnw -pl finledger spring-boot:run
 ```
 
-In containers, the conventional mount is `/workspace/config/` (see Docker notes in
-the plan §18.1; full image contract arrives in FL-140).
+In containers, mount overrides at `/workspace/config/` (image default
+`SPRING_CONFIG_ADDITIONAL_LOCATION=optional:file:/workspace/config/`). See
+[ADR-012](adr/ADR-012-docker-distribution.md).
+
+## Docker image contract (FL-140)
+
+| Item | Value |
+|------|--------|
+| Image | `${DOCKERHUB_USERNAME}/finledger:<semver>` and `:latest` (published on tag `v*.*.*`) |
+| Ports | `8080` (HTTP API), `8081` (management / actuator) |
+| Health | `GET http://localhost:8081/actuator/health` |
+| User | non-root `finledger` (UID 1000) |
+| Config volume | `/workspace/config` |
+| Extra JVM flags | `JAVA_OPTS` (optional) |
+
+Local Compose:
+
+```bash
+# Postgres + Redis only (default)
+docker compose up -d
+
+# Full stack (build image + app). Put OIDC issuer in `.env` first.
+docker compose --profile with-app up -d --build
+```
+
+Production profile (`application-prod.yml`) also accepts `DB_URL` / `DB_USERNAME` /
+`DB_PASSWORD` / `REDIS_HOST` / `REDIS_PORT`, plus `SPRING_FLYWAY_USER` /
+`SPRING_FLYWAY_PASSWORD` so Flyway can run as the Postgres superuser while the
+app uses `finledger_app` (RLS).
 
 ## Common environment variables
 
@@ -61,8 +88,11 @@ the plan §18.1; full image contract arrives in FL-140).
 | `SPRING_DATASOURCE_URL` | JDBC URL |
 | `SPRING_DATASOURCE_USERNAME` | DB user |
 | `SPRING_DATASOURCE_PASSWORD` | DB password |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | Prod-profile aliases for datasource |
+| `SPRING_FLYWAY_USER` / `SPRING_FLYWAY_PASSWORD` | Flyway credentials (often superuser) |
 | `SPRING_DATA_REDIS_HOST` | Redis host |
 | `SPRING_DATA_REDIS_PORT` | Redis port |
+| `REDIS_HOST` / `REDIS_PORT` | Prod-profile aliases for Redis |
 | `SPRING_CONFIG_ADDITIONAL_LOCATION` | Optional extra config locations |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (preferred) |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | JWKS URI alternative to issuer |
@@ -71,6 +101,8 @@ the plan §18.1; full image contract arrives in FL-140).
 | `FINLEDGER_TOKEN` | CLI only — Bearer JWT for `/api/v1` (needs `ledger:admin` to create tenants) |
 | `FINLEDGER_FRAUD_ENABLED` | Enable in-box rule-based risk check (`true` / default `false`) |
 | `SERVER_PORT` | HTTP port (default `8080`) |
+| `MANAGEMENT_SERVER_PORT` | Actuator port (image default `8081`) |
+| `JAVA_OPTS` | Extra JVM flags for the container entrypoint |
 
 Production profile (`application-prod.yml`) expects secrets via env (`DB_URL`,
 `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`) — never commit real values.
