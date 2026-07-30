@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.pauluno.finledger.application.audit.Auditable;
 import com.pauluno.finledger.application.dto.CreateLedgerAccountCommand;
 import com.pauluno.finledger.application.dto.CreateLedgerAccountResult;
 import com.pauluno.finledger.application.port.in.CreateLedgerAccountUseCase;
@@ -31,6 +32,7 @@ public class CreateLedgerAccountService implements CreateLedgerAccountUseCase {
 
     @Override
     @Transactional
+    @Auditable(action = "CREATE_ACCOUNT", resourceType = "LEDGER_ACCOUNT")
     public CreateLedgerAccountResult execute(CreateLedgerAccountCommand command) {
         LedgerAccount account = new LedgerAccount(
                 UUID.randomUUID(),

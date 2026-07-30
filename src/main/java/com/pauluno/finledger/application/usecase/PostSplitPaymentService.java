@@ -21,6 +21,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.pauluno.finledger.application.audit.Auditable;
 import com.pauluno.finledger.application.dto.PostSplitPaymentCommand;
 import com.pauluno.finledger.application.dto.PostTransactionResult;
 import com.pauluno.finledger.application.event.TransactionPosted;
@@ -88,6 +89,7 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
 
     @Override
     @Transactional
+    @Auditable(action = "POST_SPLIT", resourceType = "JOURNAL_ENTRY")
     public PostTransactionResult execute(PostSplitPaymentCommand command) {
         String requestHash = hashRequest(command);
         IdempotencyKey key = new IdempotencyKey(command.idempotencyKey());

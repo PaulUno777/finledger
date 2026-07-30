@@ -5,6 +5,7 @@ import java.util.Currency;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.pauluno.finledger.application.audit.Auditable;
 import com.pauluno.finledger.application.dto.PutFxRateOverrideCommand;
 import com.pauluno.finledger.application.exception.BusinessRuleException;
 import com.pauluno.finledger.application.port.in.PutFxRateOverrideUseCase;
@@ -29,6 +30,7 @@ public class PutFxRateOverrideService implements PutFxRateOverrideUseCase {
 
     @Override
     @Transactional
+    @Auditable(action = "PUT_FX_OVERRIDE", resourceType = "FX_RATE_OVERRIDE")
     public void execute(PutFxRateOverrideCommand command) {
         if (!command.validTo().isAfter(command.validFrom())) {
             throw new BusinessRuleException("INVALID_FX_OVERRIDE", "validTo must be after validFrom");

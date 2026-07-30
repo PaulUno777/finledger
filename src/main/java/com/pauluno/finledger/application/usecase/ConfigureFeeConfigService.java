@@ -3,6 +3,7 @@ package com.pauluno.finledger.application.usecase;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.pauluno.finledger.application.audit.Auditable;
 import com.pauluno.finledger.application.dto.ConfigureFeeConfigCommand;
 import com.pauluno.finledger.application.dto.FeeConfigResult;
 import com.pauluno.finledger.application.port.in.ConfigureFeeConfigUseCase;
@@ -20,6 +21,7 @@ public class ConfigureFeeConfigService implements ConfigureFeeConfigUseCase {
 
     @Override
     @Transactional
+    @Auditable(action = "CONFIGURE_FEE", resourceType = "TENANT_FEE_CONFIG")
     public FeeConfigResult execute(ConfigureFeeConfigCommand command) {
         FeeReversalPolicyType policy = FeeReversalPolicyType.valueOf(command.feeReversalPolicy());
         FeeReversalPolicyType saved = tenantFeeConfigRepository.save(command.tenantId(), policy);

@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.pauluno.finledger.application.audit.Auditable;
 import com.pauluno.finledger.application.dto.CreateTenantCommand;
 import com.pauluno.finledger.application.dto.CreateTenantResult;
 import com.pauluno.finledger.application.exception.BusinessRuleException;
@@ -27,6 +28,7 @@ public class CreateTenantService implements CreateTenantUseCase {
 
     @Override
     @Transactional
+    @Auditable(action = "CREATE_TENANT", resourceType = "TENANT")
     public CreateTenantResult execute(CreateTenantCommand command) {
         TenantType type = TenantType.valueOf(command.type());
         UUID parentId = command.parentTenantId();
