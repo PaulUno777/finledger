@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -28,10 +29,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import com.pauluno.finledger.support.IntegrationTestSecurityConfig;
+import static com.pauluno.finledger.support.TestJwtAuth.adminJwt;
+import static com.pauluno.finledger.support.TestJwtAuth.tenantReadWriteJwt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @SpringBootTest
+@Import(IntegrationTestSecurityConfig.class)
 @AutoConfigureMockMvc
 @Testcontainers
 @Tag("integration")
@@ -63,8 +68,6 @@ class AuditTrailIntegrationTest {
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
         registry.add("finledger.outbox.poll-interval-ms", () -> "3600000");
         registry.add("finledger.audit.integrity-interval-ms", () -> "3600000");
-        registry.add("spring.autoconfigure.exclude",
-                () -> "org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration");
     }
 
     @Autowired
@@ -77,6 +80,7 @@ class AuditTrailIntegrationTest {
         String traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
         MvcResult tenantResult = mockMvc.perform(post("/api/v1/tenants")
+                        .with(adminJwt())
                         .header("traceparent", traceparent)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of(
@@ -101,13 +105,15 @@ class AuditTrailIntegrationTest {
                 """.formatted(fromId, toId);
 
         mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .header("Idempotency-Key", "audit-" + UUID.randomUUID())
                         .header("traceparent", traceparent)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(get("/api/v1/tenants/{tenantId}/audit/integrity", tenantId))
+        mockMvc.perform(get("/api/v1/tenants/{tenantId}/audit/integrity", tenantId)
+                        .with(tenantReadWriteJwt(tenantId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.valid").value(true))
                 .andExpect(jsonPath("$.checkedCount").value(org.hamcrest.Matchers.greaterThanOrEqualTo(2)));
@@ -126,7 +132,8 @@ class AuditTrailIntegrationTest {
             enable.execute("ALTER TABLE audit_log ENABLE TRIGGER audit_log_no_update");
         }
 
-        mockMvc.perform(get("/api/v1/tenants/{tenantId}/audit/integrity", tenantId))
+        mockMvc.perform(get("/api/v1/tenants/{tenantId}/audit/integrity", tenantId)
+                        .with(tenantReadWriteJwt(tenantId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.valid").value(false))
                 .andExpect(jsonPath("$.breakAt").isNumber());
@@ -140,6 +147,7 @@ class AuditTrailIntegrationTest {
                 "allowsOverdraft", true
         ));
         MvcResult result = mockMvc.perform(post("/api/v1/tenants/{tenantId}/accounts", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isCreated())

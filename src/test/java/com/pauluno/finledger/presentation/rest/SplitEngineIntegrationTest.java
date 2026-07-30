@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -25,10 +26,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import com.pauluno.finledger.support.IntegrationTestSecurityConfig;
+import static com.pauluno.finledger.support.TestJwtAuth.adminJwt;
+import static com.pauluno.finledger.support.TestJwtAuth.tenantReadWriteJwt;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @SpringBootTest
+@Import(IntegrationTestSecurityConfig.class)
 @AutoConfigureMockMvc
 @Testcontainers
 @Tag("integration")
@@ -59,8 +64,6 @@ class SplitEngineIntegrationTest {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
         registry.add("finledger.outbox.poll-interval-ms", () -> "3600000");
-        registry.add("spring.autoconfigure.exclude",
-                () -> "org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration");
     }
 
     @Autowired
@@ -76,6 +79,7 @@ class SplitEngineIntegrationTest {
         UUID fee = createAccount(tenantId, "fee", "FEE_PLATFORM_REVENUE", true);
 
         mockMvc.perform(put("/api/v1/tenants/{tenantId}/split-rules/{key}", tenantId, "default")
+                        .with(tenantReadWriteJwt(tenantId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -90,6 +94,7 @@ class SplitEngineIntegrationTest {
                 .andExpect(jsonPath("$.ruleSetKey").value("default"));
 
         mockMvc.perform(put("/api/v1/tenants/{tenantId}/fee-config", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"feeReversalPolicy\": \"NO_REVERSE\"}"))
                 .andExpect(status().isOk())
@@ -110,6 +115,7 @@ class SplitEngineIntegrationTest {
                 """.formatted(source, merchant, fee);
 
         MvcResult splitResult = mockMvc.perform(post("/api/v1/tenants/{tenantId}/splits", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .header("Idempotency-Key", "split-" + UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(splitBody))
@@ -131,6 +137,7 @@ class SplitEngineIntegrationTest {
                 """.formatted(journalEntryId);
 
         MvcResult refundResult = mockMvc.perform(post("/api/v1/tenants/{tenantId}/refunds", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .header("Idempotency-Key", "refund-" + UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(refundBody))
@@ -157,6 +164,7 @@ class SplitEngineIntegrationTest {
         UUID fee = createAccount(tenantId, "fee", "FEE_PLATFORM_REVENUE", true);
 
         mockMvc.perform(put("/api/v1/tenants/{tenantId}/split-rules/{key}", tenantId, "default")
+                        .with(tenantReadWriteJwt(tenantId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -170,6 +178,7 @@ class SplitEngineIntegrationTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(put("/api/v1/tenants/{tenantId}/fee-config", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"feeReversalPolicy\": \"PRO_RATA\"}"))
                 .andExpect(status().isOk());
@@ -189,6 +198,7 @@ class SplitEngineIntegrationTest {
                 """.formatted(source, merchant, fee);
 
         MvcResult splitResult = mockMvc.perform(post("/api/v1/tenants/{tenantId}/splits", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .header("Idempotency-Key", "split-pr-" + UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(splitBody))
@@ -199,6 +209,7 @@ class SplitEngineIntegrationTest {
                 .get("journalEntryId").asText();
 
         MvcResult refundResult = mockMvc.perform(post("/api/v1/tenants/{tenantId}/refunds", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .header("Idempotency-Key", "refund-pr-" + UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -230,6 +241,7 @@ class SplitEngineIntegrationTest {
                 "type", "STANDALONE"
         ));
         MvcResult result = mockMvc.perform(post("/api/v1/tenants")
+                        .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isCreated())
@@ -247,6 +259,7 @@ class SplitEngineIntegrationTest {
                 "allowsOverdraft", allowsOverdraft
         ));
         MvcResult result = mockMvc.perform(post("/api/v1/tenants/{tenantId}/accounts", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isCreated())
