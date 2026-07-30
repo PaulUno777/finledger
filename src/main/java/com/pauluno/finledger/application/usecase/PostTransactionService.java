@@ -26,15 +26,19 @@ import com.pauluno.finledger.application.exception.BusinessRuleException;
 import com.pauluno.finledger.application.exception.ResourceNotFoundException;
 import com.pauluno.finledger.application.port.in.PostTransactionUseCase;
 import com.pauluno.finledger.application.port.out.AccountBalanceRepository;
+import com.pauluno.finledger.application.port.out.ExchangeRateProvider;
 import com.pauluno.finledger.application.port.out.IdempotencyStore;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
 import com.pauluno.finledger.application.port.out.OutboxWriter;
 import com.pauluno.finledger.domain.exception.AccountClosedException;
 import com.pauluno.finledger.domain.exception.CurrencyMismatchException;
+import com.pauluno.finledger.domain.exception.ExchangeRateNotFoundException;
 import com.pauluno.finledger.domain.exception.InsufficientFundsException;
 import com.pauluno.finledger.domain.exception.InvalidJournalEntryException;
 import com.pauluno.finledger.domain.model.AccountBalance;
+import com.pauluno.finledger.domain.model.CurrencyPair;
+import com.pauluno.finledger.domain.model.ExchangeRate;
 import com.pauluno.finledger.domain.model.IdempotencyKey;
 import com.pauluno.finledger.domain.model.JournalEntry;
 import com.pauluno.finledger.domain.model.LedgerAccount;
@@ -53,6 +57,7 @@ public class PostTransactionService implements PostTransactionUseCase {
     private final AccountBalanceRepository accountBalanceRepository;
     private final JournalEntryRepository journalEntryRepository;
     private final OutboxWriter outboxWriter;
+    private final ExchangeRateProvider exchangeRateProvider;
     private final ObjectMapper objectMapper;
 
     public PostTransactionService(
@@ -60,13 +65,15 @@ public class PostTransactionService implements PostTransactionUseCase {
             LedgerAccountRepository ledgerAccountRepository,
             AccountBalanceRepository accountBalanceRepository,
             JournalEntryRepository journalEntryRepository,
-            OutboxWriter outboxWriter
+            OutboxWriter outboxWriter,
+            ExchangeRateProvider exchangeRateProvider
     ) {
         this.idempotencyStore = idempotencyStore;
         this.ledgerAccountRepository = ledgerAccountRepository;
         this.accountBalanceRepository = accountBalanceRepository;
         this.journalEntryRepository = journalEntryRepository;
         this.outboxWriter = outboxWriter;
+        this.exchangeRateProvider = exchangeRateProvider;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -139,6 +146,9 @@ public class PostTransactionService implements PostTransactionUseCase {
                 ));
             }
 
+            Instant occurredAt = Instant.now();
+            ExchangeRate frozenRate = resolveFrozenRate(command, occurredAt);
+
             JournalEntry entry = JournalEntry.create(
                     command.tenantId(),
                     key,
@@ -146,7 +156,8 @@ public class PostTransactionService implements PostTransactionUseCase {
                     postings,
                     accounts,
                     balances,
-                    Instant.now()
+                    occurredAt,
+                    frozenRate
             );
 
             JournalEntry saved = journalEntryRepository.save(entry);
@@ -155,9 +166,24 @@ public class PostTransactionService implements PostTransactionUseCase {
         } catch (InvalidJournalEntryException
                  | CurrencyMismatchException
                  | InsufficientFundsException
-                 | AccountClosedException ex) {
+                 | AccountClosedException
+                 | ExchangeRateNotFoundException ex) {
             throw new BusinessRuleException(toCode(ex), ex.getMessage(), ex);
         }
+    }
+
+    private ExchangeRate resolveFrozenRate(PostTransactionCommand command, Instant occurredAt) {
+        if (command.exchange() == null) {
+            return null;
+        }
+        Instant asOf = command.exchange().asOf() == null ? occurredAt : command.exchange().asOf();
+        return exchangeRateProvider.getRate(
+                command.tenantId(),
+                CurrencyPair.of(
+                        command.exchange().baseCurrencyCode(),
+                        command.exchange().quoteCurrencyCode()),
+                asOf
+        );
     }
 
     private void appendOutbox(JournalEntry saved) {
@@ -221,6 +247,7 @@ public class PostTransactionService implements PostTransactionUseCase {
             canonical.put("tenantId", command.tenantId().toString());
             canonical.put("transactionReference", command.transactionReference());
             canonical.put("postings", command.postings());
+            canonical.put("exchange", command.exchange());
             String json = objectMapper.writeValueAsString(canonical);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(json.getBytes(StandardCharsets.UTF_8));

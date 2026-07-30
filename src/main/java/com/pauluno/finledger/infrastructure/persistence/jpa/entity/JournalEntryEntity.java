@@ -39,6 +39,15 @@ public class JournalEntryEntity {
     @Column(name = "reverses_entry_id")
     private UUID reversesEntryId;
 
+    @Column(name = "rate_used", precision = 38, scale = 18)
+    private java.math.BigDecimal rateUsed;
+
+    @Column(name = "rate_source", length = 32)
+    private String rateSource;
+
+    @Column(name = "rate_timestamp")
+    private Instant rateTimestamp;
+
     @OneToMany(mappedBy = "journalEntry", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("lineNo ASC")
     private List<PostingEntity> postings = new ArrayList<>();
@@ -100,6 +109,30 @@ public class JournalEntryEntity {
 
     public void setReversesEntryId(UUID reversesEntryId) {
         this.reversesEntryId = reversesEntryId;
+    }
+
+    public java.math.BigDecimal getRateUsed() {
+        return rateUsed;
+    }
+
+    public void setRateUsed(java.math.BigDecimal rateUsed) {
+        this.rateUsed = rateUsed;
+    }
+
+    public String getRateSource() {
+        return rateSource;
+    }
+
+    public void setRateSource(String rateSource) {
+        this.rateSource = rateSource;
+    }
+
+    public Instant getRateTimestamp() {
+        return rateTimestamp;
+    }
+
+    public void setRateTimestamp(Instant rateTimestamp) {
+        this.rateTimestamp = rateTimestamp;
     }
 
     public List<PostingEntity> getPostings() {

@@ -10,6 +10,7 @@ import com.pauluno.finledger.domain.model.JournalEntry;
 import com.pauluno.finledger.domain.model.JournalEntryType;
 import com.pauluno.finledger.domain.model.Money;
 import com.pauluno.finledger.domain.model.Posting;
+import com.pauluno.finledger.domain.model.RateSource;
 import com.pauluno.finledger.domain.model.SettlementStatus;
 import com.pauluno.finledger.domain.model.TransactionReference;
 import com.pauluno.finledger.infrastructure.persistence.jpa.entity.JournalEntryEntity;
@@ -29,6 +30,9 @@ public final class JournalEntryMapper {
         entity.setEntryType(entry.type().name());
         entity.setOccurredAt(entry.occurredAt());
         entity.setReversesEntryId(entry.reversesEntryId().orElse(null));
+        entity.setRateUsed(entry.rateUsed().orElse(null));
+        entity.setRateSource(entry.rateSource().map(Enum::name).orElse(null));
+        entity.setRateTimestamp(entry.rateTimestamp().orElse(null));
 
         int lineNo = 0;
         for (Posting posting : entry.postings()) {
@@ -54,6 +58,9 @@ public final class JournalEntryMapper {
                     SettlementStatus.valueOf(postingEntity.getSettlementStatus())
             ));
         }
+        RateSource rateSource = entity.getRateSource() == null
+                ? null
+                : RateSource.valueOf(entity.getRateSource());
         return JournalEntry.reconstitute(
                 entity.getId(),
                 entity.getTenantId(),
@@ -62,7 +69,10 @@ public final class JournalEntryMapper {
                 JournalEntryType.valueOf(entity.getEntryType()),
                 postings,
                 entity.getOccurredAt(),
-                entity.getReversesEntryId()
+                entity.getReversesEntryId(),
+                entity.getRateUsed(),
+                rateSource,
+                entity.getRateTimestamp()
         );
     }
 }
