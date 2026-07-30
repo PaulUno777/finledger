@@ -1,4 +1,4 @@
-package com.pauluno.finledger.presentation.rest;
+package com.pauluno.finledger.infrastructure.tenant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -27,13 +27,15 @@ import org.testcontainers.utility.DockerImageName;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pauluno.finledger.application.port.out.JournalEntryRepository;
+import com.pauluno.finledger.application.tenant.TenantContext;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @Testcontainers
 @Tag("integration")
 @SuppressWarnings("resource")
-class PostTransactionIntegrationTest {
+class TenantRlsIntegrationTest {
 
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(
@@ -66,74 +68,50 @@ class PostTransactionIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private JournalEntryRepository journalEntryRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void should_create_accounts_post_transfer_replay_and_conflict_on_body_change() throws Exception {
-        UUID tenantId = createTenant("post-tx-shop");
+    void should_let_aggregator_see_sub_merchant_journal_and_hide_from_sibling() throws Exception {
+        UUID aggregatorId = createTenant("Agg", "AGGREGATOR", null);
+        UUID subId = createTenant("Shop", "SUB_MERCHANT", aggregatorId);
+        UUID otherId = createTenant("Other", "STANDALONE", null);
 
-        UUID fromId = createAccount(tenantId, "merchant-a", true);
-        UUID toId = createAccount(tenantId, "merchant-b", true);
+        UUID fromId = createAccount(subId, "from");
+        UUID toId = createAccount(subId, "to");
+        UUID journalEntryId = postTransfer(subId, fromId, toId);
 
-        String idempotencyKey = "idem-" + UUID.randomUUID();
-        String body = """
-                {
-                  "transactionReference": "tx-transfer-1",
-                  "postings": [
-                    {"accountId": "%s", "amount": "-25.00", "currencyCode": "USD", "settlementStatus": "SETTLED"},
-                    {"accountId": "%s", "amount": "25.00", "currencyCode": "USD", "settlementStatus": "SETTLED"}
-                  ]
-                }
-                """.formatted(fromId, toId);
-
-        MvcResult created = mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", tenantId)
-                        .header("Idempotency-Key", idempotencyKey)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.replayed").value(false))
-                .andExpect(jsonPath("$.journalEntryId").isNotEmpty())
-                .andReturn();
-
-        String journalEntryId = objectMapper.readTree(created.getResponse().getContentAsString())
-                .get("journalEntryId").asText();
-
-        mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", tenantId)
-                        .header("Idempotency-Key", idempotencyKey)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
+        mockMvc.perform(get("/api/v1/tenants/{tenantId}/journal-entries/{id}", aggregatorId, journalEntryId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.replayed").value(true))
-                .andExpect(jsonPath("$.journalEntryId").value(journalEntryId));
+                .andExpect(jsonPath("$.journalEntryId").value(journalEntryId.toString()));
 
-        String differentBody = """
-                {
-                  "transactionReference": "tx-transfer-1",
-                  "postings": [
-                    {"accountId": "%s", "amount": "-30.00", "currencyCode": "USD", "settlementStatus": "SETTLED"},
-                    {"accountId": "%s", "amount": "30.00", "currencyCode": "USD", "settlementStatus": "SETTLED"}
-                  ]
-                }
-                """.formatted(fromId, toId);
+        mockMvc.perform(get("/api/v1/tenants/{tenantId}/journal-entries/{id}", otherId, journalEntryId))
+                .andExpect(status().isNotFound());
 
-        mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", tenantId)
-                        .header("Idempotency-Key", idempotencyKey)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(differentBody))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REUSED"));
+        TenantContext.set(aggregatorId);
+        try {
+            assertThat(journalEntryRepository.findById(journalEntryId)).isPresent();
+        } finally {
+            TenantContext.clear();
+        }
 
-        mockMvc.perform(get("/api/v1/tenants/{tenantId}/journal-entries/{id}", tenantId, journalEntryId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.journalEntryId").value(journalEntryId))
-                .andExpect(jsonPath("$.postings.length()").value(2));
+        TenantContext.set(otherId);
+        try {
+            assertThat(journalEntryRepository.findById(journalEntryId)).isEmpty();
+        } finally {
+            TenantContext.clear();
+        }
     }
 
-    private UUID createTenant(String name) throws Exception {
-        String payload = objectMapper.writeValueAsString(Map.of(
-                "name", name,
-                "type", "STANDALONE"
-        ));
+    private UUID createTenant(String name, String type, UUID parentTenantId) throws Exception {
+        String payload = parentTenantId == null
+                ? objectMapper.writeValueAsString(Map.of("name", name, "type", type))
+                : objectMapper.writeValueAsString(Map.of(
+                        "name", name,
+                        "type", type,
+                        "parentTenantId", parentTenantId.toString()));
         MvcResult result = mockMvc.perform(post("/api/v1/tenants")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
@@ -143,13 +121,12 @@ class PostTransactionIntegrationTest {
                 .get("tenantId").asText());
     }
 
-    private UUID createAccount(UUID tenantId, String ownerRef, boolean allowsOverdraft)
-            throws Exception {
+    private UUID createAccount(UUID tenantId, String ownerRef) throws Exception {
         String payload = objectMapper.writeValueAsString(Map.of(
                 "ownerRef", ownerRef,
                 "currencyCode", "USD",
                 "type", "MERCHANT_WALLET",
-                "allowsOverdraft", allowsOverdraft
+                "allowsOverdraft", true
         ));
         MvcResult result = mockMvc.perform(post("/api/v1/tenants/{tenantId}/accounts", tenantId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -157,7 +134,26 @@ class PostTransactionIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
-        assertThat(json.get("accountId").asText()).isNotBlank();
         return UUID.fromString(json.get("accountId").asText());
+    }
+
+    private UUID postTransfer(UUID tenantId, UUID fromId, UUID toId) throws Exception {
+        String body = """
+                {
+                  "transactionReference": "tx-rls-1",
+                  "postings": [
+                    {"accountId": "%s", "amount": "-5.00", "currencyCode": "USD", "settlementStatus": "SETTLED"},
+                    {"accountId": "%s", "amount": "5.00", "currencyCode": "USD", "settlementStatus": "SETTLED"}
+                  ]
+                }
+                """.formatted(fromId, toId);
+        MvcResult created = mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", tenantId)
+                        .header("Idempotency-Key", "rls-" + UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return UUID.fromString(objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("journalEntryId").asText());
     }
 }

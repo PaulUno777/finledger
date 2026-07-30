@@ -30,8 +30,10 @@ class FinledgerApplicationTests {
 	@DynamicPropertySource
 	static void registerProperties(DynamicPropertyRegistry registry) {
 		registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-		registry.add("spring.datasource.username", POSTGRES::getUsername);
-		registry.add("spring.datasource.password", POSTGRES::getPassword);
+		registry.add("spring.datasource.username", () -> "finledger_app");
+		registry.add("spring.datasource.password", () -> "finledger");
+		registry.add("spring.flyway.user", POSTGRES::getUsername);
+		registry.add("spring.flyway.password", POSTGRES::getPassword);
 		registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
 		registry.add("spring.flyway.enabled", () -> "true");
 		registry.add("spring.data.redis.host", REDIS::getHost);
