@@ -5,6 +5,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Currency;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
@@ -19,36 +21,37 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.pauluno.finledger.application.dto.PostTransactionCommand;
+import com.pauluno.finledger.application.dto.PostSplitPaymentCommand;
 import com.pauluno.finledger.application.dto.PostTransactionResult;
 import com.pauluno.finledger.application.event.TransactionPosted;
 import com.pauluno.finledger.application.exception.BusinessRuleException;
 import com.pauluno.finledger.application.exception.ResourceNotFoundException;
-import com.pauluno.finledger.application.port.in.PostTransactionUseCase;
+import com.pauluno.finledger.application.port.in.PostSplitPaymentUseCase;
 import com.pauluno.finledger.application.port.out.AccountBalanceRepository;
-import com.pauluno.finledger.application.port.out.ExchangeRateProvider;
 import com.pauluno.finledger.application.port.out.IdempotencyStore;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
 import com.pauluno.finledger.application.port.out.OutboxWriter;
+import com.pauluno.finledger.application.port.out.SplitPlanResolver;
+import com.pauluno.finledger.application.port.out.SplitRuleSetRepository;
 import com.pauluno.finledger.domain.exception.AccountClosedException;
 import com.pauluno.finledger.domain.exception.CurrencyMismatchException;
-import com.pauluno.finledger.domain.exception.ExchangeRateNotFoundException;
 import com.pauluno.finledger.domain.exception.InsufficientFundsException;
 import com.pauluno.finledger.domain.exception.InvalidJournalEntryException;
 import com.pauluno.finledger.domain.model.AccountBalance;
-import com.pauluno.finledger.domain.model.CurrencyPair;
-import com.pauluno.finledger.domain.model.ExchangeRate;
+import com.pauluno.finledger.domain.model.AccountType;
 import com.pauluno.finledger.domain.model.IdempotencyKey;
 import com.pauluno.finledger.domain.model.JournalEntry;
 import com.pauluno.finledger.domain.model.LedgerAccount;
 import com.pauluno.finledger.domain.model.Money;
 import com.pauluno.finledger.domain.model.Posting;
 import com.pauluno.finledger.domain.model.SettlementStatus;
+import com.pauluno.finledger.domain.model.SplitPlan;
+import com.pauluno.finledger.domain.model.SplitRuleSet;
 import com.pauluno.finledger.domain.model.TransactionReference;
 
 @Service
-public class PostTransactionService implements PostTransactionUseCase {
+public class PostSplitPaymentService implements PostSplitPaymentUseCase {
 
     private static final int MAX_OPTIMISTIC_RETRIES = 3;
 
@@ -57,23 +60,26 @@ public class PostTransactionService implements PostTransactionUseCase {
     private final AccountBalanceRepository accountBalanceRepository;
     private final JournalEntryRepository journalEntryRepository;
     private final OutboxWriter outboxWriter;
-    private final ExchangeRateProvider exchangeRateProvider;
+    private final SplitRuleSetRepository splitRuleSetRepository;
+    private final SplitPlanResolver splitPlanResolver;
     private final ObjectMapper objectMapper;
 
-    public PostTransactionService(
+    public PostSplitPaymentService(
             IdempotencyStore idempotencyStore,
             LedgerAccountRepository ledgerAccountRepository,
             AccountBalanceRepository accountBalanceRepository,
             JournalEntryRepository journalEntryRepository,
             OutboxWriter outboxWriter,
-            ExchangeRateProvider exchangeRateProvider
+            SplitRuleSetRepository splitRuleSetRepository,
+            SplitPlanResolver splitPlanResolver
     ) {
         this.idempotencyStore = idempotencyStore;
         this.ledgerAccountRepository = ledgerAccountRepository;
         this.accountBalanceRepository = accountBalanceRepository;
         this.journalEntryRepository = journalEntryRepository;
         this.outboxWriter = outboxWriter;
-        this.exchangeRateProvider = exchangeRateProvider;
+        this.splitRuleSetRepository = splitRuleSetRepository;
+        this.splitPlanResolver = splitPlanResolver;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -82,7 +88,7 @@ public class PostTransactionService implements PostTransactionUseCase {
 
     @Override
     @Transactional
-    public PostTransactionResult execute(PostTransactionCommand command) {
+    public PostTransactionResult execute(PostSplitPaymentCommand command) {
         String requestHash = hashRequest(command);
         IdempotencyKey key = new IdempotencyKey(command.idempotencyKey());
         IdempotencyStore.BeginOutcome begin = idempotencyStore.tryBegin(
@@ -94,10 +100,7 @@ public class PostTransactionService implements PostTransactionUseCase {
 
         try {
             PostTransactionResult result = executeWithRetry(command, key);
-            idempotencyStore.complete(
-                    command.tenantId(),
-                    key,
-                    serializeResult(result));
+            idempotencyStore.complete(command.tenantId(), key, serializeResult(result));
             return result;
         } catch (RuntimeException ex) {
             idempotencyStore.fail(command.tenantId(), key);
@@ -105,7 +108,7 @@ public class PostTransactionService implements PostTransactionUseCase {
         }
     }
 
-    private PostTransactionResult executeWithRetry(PostTransactionCommand command, IdempotencyKey key) {
+    private PostTransactionResult executeWithRetry(PostSplitPaymentCommand command, IdempotencyKey key) {
         OptimisticLockingFailureException last = null;
         for (int attempt = 1; attempt <= MAX_OPTIMISTIC_RETRIES; attempt++) {
             try {
@@ -123,31 +126,53 @@ public class PostTransactionService implements PostTransactionUseCase {
         throw last;
     }
 
-    private PostTransactionResult postOnce(PostTransactionCommand command, IdempotencyKey key) {
+    private PostTransactionResult postOnce(PostSplitPaymentCommand command, IdempotencyKey key) {
         try {
-            Map<UUID, LedgerAccount> accounts = new HashMap<>();
+            SplitRuleSet ruleSet = splitRuleSetRepository
+                    .findByTenantAndKey(command.tenantId(), command.ruleSetKey())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Split rule set not found: " + command.ruleSetKey()));
+
+            Money total = Money.of(
+                    command.totalAmount(),
+                    Currency.getInstance(command.currencyCode()));
+            Map<AccountType, UUID> accountsByType = new EnumMap<>(AccountType.class);
+            for (Map.Entry<String, UUID> entry : command.accountsByType().entrySet()) {
+                accountsByType.put(AccountType.valueOf(entry.getKey()), entry.getValue());
+            }
+
+            SplitPlan plan = splitPlanResolver.resolve(
+                    ruleSet,
+                    total,
+                    new SplitPlanResolver.SplitContext(command.sourceAccountId(), accountsByType)
+            );
+
             List<UUID> accountIds = new ArrayList<>();
-            for (PostTransactionCommand.PostingLine line : command.postings()) {
-                accountIds.add(line.accountId());
+            accountIds.add(command.sourceAccountId());
+            for (SplitPlan.SplitLeg leg : plan.legs()) {
+                accountIds.add(leg.accountId());
+            }
+
+            Map<UUID, LedgerAccount> accounts = new HashMap<>();
+            for (UUID accountId : accountIds) {
                 LedgerAccount account = ledgerAccountRepository
-                        .findByIdForTenant(line.accountId(), command.tenantId())
+                        .findByIdForTenant(accountId, command.tenantId())
                         .orElseThrow(() -> new ResourceNotFoundException(
-                                "Account not found for tenant: " + line.accountId()));
+                                "Account not found for tenant: " + accountId));
                 accounts.put(account.id(), account);
             }
 
             Map<UUID, AccountBalance> balances = accountBalanceRepository.findByAccountIds(accountIds);
-            List<Posting> postings = new ArrayList<>(command.postings().size());
-            for (PostTransactionCommand.PostingLine line : command.postings()) {
-                postings.add(new Posting(
-                        line.accountId(),
-                        Money.of(line.amount(), line.currency()),
-                        SettlementStatus.valueOf(line.settlementStatus())
-                ));
-            }
 
-            Instant occurredAt = Instant.now();
-            ExchangeRate frozenRate = resolveFrozenRate(command, occurredAt);
+            List<Posting> postings = new ArrayList<>();
+            postings.add(new Posting(
+                    command.sourceAccountId(),
+                    total.negated(),
+                    SettlementStatus.SETTLED
+            ));
+            for (SplitPlan.SplitLeg leg : plan.legs()) {
+                postings.add(new Posting(leg.accountId(), leg.amount(), SettlementStatus.SETTLED));
+            }
 
             JournalEntry entry = JournalEntry.create(
                     command.tenantId(),
@@ -156,34 +181,20 @@ public class PostTransactionService implements PostTransactionUseCase {
                     postings,
                     accounts,
                     balances,
-                    occurredAt,
-                    frozenRate
+                    Instant.now(),
+                    null
             );
 
             JournalEntry saved = journalEntryRepository.save(entry);
             appendOutbox(saved);
-            return toResult(saved, false);
+            return PostTransactionService.toResult(saved, false);
         } catch (InvalidJournalEntryException
                  | CurrencyMismatchException
                  | InsufficientFundsException
                  | AccountClosedException
-                 | ExchangeRateNotFoundException ex) {
+                 | IllegalArgumentException ex) {
             throw new BusinessRuleException(toCode(ex), ex.getMessage(), ex);
         }
-    }
-
-    private ExchangeRate resolveFrozenRate(PostTransactionCommand command, Instant occurredAt) {
-        if (command.exchange() == null) {
-            return null;
-        }
-        Instant asOf = command.exchange().asOf() == null ? occurredAt : command.exchange().asOf();
-        return exchangeRateProvider.getRate(
-                command.tenantId(),
-                CurrencyPair.of(
-                        command.exchange().baseCurrencyCode(),
-                        command.exchange().quoteCurrencyCode()),
-                asOf
-        );
     }
 
     private void appendOutbox(JournalEntry saved) {
@@ -214,25 +225,6 @@ public class PostTransactionService implements PostTransactionUseCase {
         }
     }
 
-    static PostTransactionResult toResult(JournalEntry entry, boolean replayed) {
-        List<PostTransactionResult.PostingLineView> lines = entry.postings().stream()
-                .map(p -> new PostTransactionResult.PostingLineView(
-                        p.accountId(),
-                        p.amount().amount().toPlainString(),
-                        p.amount().currency().getCurrencyCode(),
-                        p.settlementStatus().name()
-                ))
-                .toList();
-        return new PostTransactionResult(
-                entry.id(),
-                entry.tenantId(),
-                entry.type().name(),
-                entry.transactionReference().value(),
-                lines,
-                replayed
-        );
-    }
-
     private static String toCode(RuntimeException ex) {
         String name = ex.getClass().getSimpleName();
         if (name.endsWith("Exception")) {
@@ -241,13 +233,16 @@ public class PostTransactionService implements PostTransactionUseCase {
         return name.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase();
     }
 
-    private String hashRequest(PostTransactionCommand command) {
+    private String hashRequest(PostSplitPaymentCommand command) {
         try {
             Map<String, Object> canonical = new HashMap<>();
             canonical.put("tenantId", command.tenantId().toString());
             canonical.put("transactionReference", command.transactionReference());
-            canonical.put("postings", command.postings());
-            canonical.put("exchange", command.exchange());
+            canonical.put("totalAmount", command.totalAmount());
+            canonical.put("currencyCode", command.currencyCode());
+            canonical.put("sourceAccountId", command.sourceAccountId().toString());
+            canonical.put("accountsByType", command.accountsByType());
+            canonical.put("ruleSetKey", command.ruleSetKey());
             String json = objectMapper.writeValueAsString(canonical);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(json.getBytes(StandardCharsets.UTF_8));

@@ -53,12 +53,22 @@ public class JournalEntryController {
                 ))
                 .toList();
 
+        PostTransactionCommand.ExchangeHint exchange = null;
+        if (request.exchange() != null) {
+            exchange = new PostTransactionCommand.ExchangeHint(
+                    request.exchange().baseCurrencyCode(),
+                    request.exchange().quoteCurrencyCode(),
+                    request.exchange().asOf()
+            );
+        }
+
         PostTransactionResult result = postTransactionUseCase.execute(
                 new PostTransactionCommand(
                         tenantId,
                         idempotencyKey,
                         request.transactionReference(),
-                        lines
+                        lines,
+                        exchange
                 )
         );
 
@@ -76,7 +86,15 @@ public class JournalEntryController {
 
     public record PostJournalEntryRequest(
             @NotBlank String transactionReference,
-            @NotEmpty List<@Valid PostingLineRequest> postings
+            @NotEmpty List<@Valid PostingLineRequest> postings,
+            ExchangeRequest exchange
+    ) {
+    }
+
+    public record ExchangeRequest(
+            @NotBlank String baseCurrencyCode,
+            @NotBlank String quoteCurrencyCode,
+            java.time.Instant asOf
     ) {
     }
 

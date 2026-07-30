@@ -1,5 +1,6 @@
 package com.pauluno.finledger.domain.model;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -13,7 +14,8 @@ import com.pauluno.finledger.domain.service.DoubleEntryValidator;
 
 /**
  * Immutable accounting transaction (append-only). Corrections happen only via
- * {@link #reverse(IdempotencyKey, Instant)}, which creates a new linked opposite entry.
+ * {@link #reverse(IdempotencyKey, Instant, Map, Map)}, which creates a new linked opposite entry.
+ * Optional FX metadata freezes the rate used for multi-currency conversion (plan §4.1).
  */
 public final class JournalEntry {
 
@@ -25,6 +27,9 @@ public final class JournalEntry {
     private final List<Posting> postings;
     private final Instant occurredAt;
     private final UUID reversesEntryId;
+    private final BigDecimal rateUsed;
+    private final RateSource rateSource;
+    private final Instant rateTimestamp;
 
     private JournalEntry(
             UUID id,
@@ -34,7 +39,10 @@ public final class JournalEntry {
             JournalEntryType type,
             List<Posting> postings,
             Instant occurredAt,
-            UUID reversesEntryId
+            UUID reversesEntryId,
+            BigDecimal rateUsed,
+            RateSource rateSource,
+            Instant rateTimestamp
     ) {
         this.id = Objects.requireNonNull(id, "id");
         this.tenantId = Objects.requireNonNull(tenantId, "tenantId");
@@ -44,6 +52,9 @@ public final class JournalEntry {
         this.postings = List.copyOf(Objects.requireNonNull(postings, "postings"));
         this.occurredAt = Objects.requireNonNull(occurredAt, "occurredAt");
         this.reversesEntryId = reversesEntryId;
+        this.rateUsed = rateUsed;
+        this.rateSource = rateSource;
+        this.rateTimestamp = rateTimestamp;
     }
 
     public static JournalEntry create(
@@ -55,7 +66,25 @@ public final class JournalEntry {
             Map<UUID, AccountBalance> balancesBefore,
             Instant occurredAt
     ) {
+        return create(
+                tenantId, idempotencyKey, transactionReference, postings,
+                accounts, balancesBefore, occurredAt, null);
+    }
+
+    public static JournalEntry create(
+            UUID tenantId,
+            IdempotencyKey idempotencyKey,
+            TransactionReference transactionReference,
+            List<Posting> postings,
+            Map<UUID, LedgerAccount> accounts,
+            Map<UUID, AccountBalance> balancesBefore,
+            Instant occurredAt,
+            ExchangeRate frozenRate
+    ) {
         DoubleEntryValidator.validate(postings, accounts, balancesBefore);
+        BigDecimal rateUsed = frozenRate == null ? null : frozenRate.rate();
+        RateSource rateSource = frozenRate == null ? null : frozenRate.source();
+        Instant rateTimestamp = frozenRate == null ? null : frozenRate.asOf();
         return new JournalEntry(
                 UUID.randomUUID(),
                 tenantId,
@@ -64,7 +93,10 @@ public final class JournalEntry {
                 JournalEntryType.POSTING,
                 postings,
                 occurredAt,
-                null
+                null,
+                rateUsed,
+                rateSource,
+                rateTimestamp
         );
     }
 
@@ -82,6 +114,24 @@ public final class JournalEntry {
             Instant occurredAt,
             UUID reversesEntryId
     ) {
+        return reconstitute(
+                id, tenantId, idempotencyKey, transactionReference, type,
+                postings, occurredAt, reversesEntryId, null, null, null);
+    }
+
+    public static JournalEntry reconstitute(
+            UUID id,
+            UUID tenantId,
+            IdempotencyKey idempotencyKey,
+            TransactionReference transactionReference,
+            JournalEntryType type,
+            List<Posting> postings,
+            Instant occurredAt,
+            UUID reversesEntryId,
+            BigDecimal rateUsed,
+            RateSource rateSource,
+            Instant rateTimestamp
+    ) {
         return new JournalEntry(
                 id,
                 tenantId,
@@ -90,13 +140,16 @@ public final class JournalEntry {
                 type,
                 postings,
                 occurredAt,
-                reversesEntryId
+                reversesEntryId,
+                rateUsed,
+                rateSource,
+                rateTimestamp
         );
     }
 
     /**
      * Creates a new REVERSAL entry with opposite signed amounts, linked to this entry.
-     * Does not mutate this instance.
+     * Does not mutate this instance. Copies frozen FX metadata when present.
      */
     public JournalEntry reverse(
             IdempotencyKey reversalKey,
@@ -117,7 +170,40 @@ public final class JournalEntry {
                 JournalEntryType.REVERSAL,
                 opposite,
                 reversalTime,
-                id
+                id,
+                rateUsed,
+                rateSource,
+                rateTimestamp
+        );
+    }
+
+    /**
+     * Creates a linked REFUND entry with policy-computed postings (plan §5.3).
+     */
+    public static JournalEntry createRefund(
+            UUID tenantId,
+            IdempotencyKey idempotencyKey,
+            TransactionReference transactionReference,
+            List<Posting> postings,
+            Map<UUID, LedgerAccount> accounts,
+            Map<UUID, AccountBalance> balancesBefore,
+            Instant occurredAt,
+            UUID originalEntryId
+    ) {
+        Objects.requireNonNull(originalEntryId, "originalEntryId");
+        DoubleEntryValidator.validate(postings, accounts, balancesBefore);
+        return new JournalEntry(
+                UUID.randomUUID(),
+                tenantId,
+                idempotencyKey,
+                transactionReference,
+                JournalEntryType.REFUND,
+                postings,
+                occurredAt,
+                originalEntryId,
+                null,
+                null,
+                null
         );
     }
 
@@ -151,5 +237,17 @@ public final class JournalEntry {
 
     public Optional<UUID> reversesEntryId() {
         return Optional.ofNullable(reversesEntryId);
+    }
+
+    public Optional<BigDecimal> rateUsed() {
+        return Optional.ofNullable(rateUsed);
+    }
+
+    public Optional<RateSource> rateSource() {
+        return Optional.ofNullable(rateSource);
+    }
+
+    public Optional<Instant> rateTimestamp() {
+        return Optional.ofNullable(rateTimestamp);
     }
 }

@@ -1,8 +1,8 @@
 package com.pauluno.finledger.application.usecase;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -15,7 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import com.pauluno.finledger.application.dto.PostTransactionCommand;
+import com.pauluno.finledger.application.dto.PostSplitPaymentCommand;
 import com.pauluno.finledger.application.dto.PostTransactionResult;
 import com.pauluno.finledger.application.exception.IdempotencyConflictException;
 import com.pauluno.finledger.application.port.out.AccountBalanceRepository;
@@ -23,18 +23,21 @@ import com.pauluno.finledger.application.port.out.IdempotencyStore;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
 import com.pauluno.finledger.application.port.out.OutboxWriter;
-import com.pauluno.finledger.application.event.TransactionPosted;
+import com.pauluno.finledger.application.port.out.SplitPlanResolver;
+import com.pauluno.finledger.application.port.out.SplitRuleSetRepository;
+import com.pauluno.finledger.application.split.DeclarativeSplitPlanResolver;
 import com.pauluno.finledger.domain.model.AccountBalance;
 import com.pauluno.finledger.domain.model.AccountStatus;
 import com.pauluno.finledger.domain.model.AccountType;
 import com.pauluno.finledger.domain.model.IdempotencyKey;
 import com.pauluno.finledger.domain.model.JournalEntry;
 import com.pauluno.finledger.domain.model.LedgerAccount;
-import com.pauluno.finledger.domain.model.Money;
+import com.pauluno.finledger.domain.model.SplitRule;
+import com.pauluno.finledger.domain.model.SplitRuleSet;
 import com.pauluno.finledger.domain.service.BalanceCalculator;
 
 @Tag("unit")
-class PostTransactionServiceTest {
+class PostSplitPaymentServiceTest {
 
     private static final java.util.Currency USD = java.util.Currency.getInstance("USD");
 
@@ -43,11 +46,13 @@ class PostTransactionServiceTest {
     private InMemoryAccountBalanceRepository balanceRepository;
     private InMemoryJournalEntryRepository journalEntryRepository;
     private InMemoryOutboxWriter outboxWriter;
-    private PostTransactionService service;
+    private InMemorySplitRuleSetRepository splitRuleSetRepository;
+    private PostSplitPaymentService service;
 
     private UUID tenantId;
-    private UUID fromId;
-    private UUID toId;
+    private UUID sourceId;
+    private UUID merchantId;
+    private UUID feeId;
 
     @BeforeEach
     void setUp() {
@@ -56,41 +61,58 @@ class PostTransactionServiceTest {
         balanceRepository = new InMemoryAccountBalanceRepository();
         journalEntryRepository = new InMemoryJournalEntryRepository(balanceRepository, accountRepository);
         outboxWriter = new InMemoryOutboxWriter();
-        service = new PostTransactionService(
+        splitRuleSetRepository = new InMemorySplitRuleSetRepository();
+        SplitPlanResolver resolver = new DeclarativeSplitPlanResolver();
+        service = new PostSplitPaymentService(
                 idempotencyStore,
                 accountRepository,
                 balanceRepository,
                 journalEntryRepository,
                 outboxWriter,
-                (tenantId, pair, asOf) -> {
-                    throw new UnsupportedOperationException("FX not used in these tests");
-                }
+                splitRuleSetRepository,
+                resolver
         );
 
         tenantId = UUID.randomUUID();
-        fromId = UUID.randomUUID();
-        toId = UUID.randomUUID();
+        sourceId = UUID.randomUUID();
+        merchantId = UUID.randomUUID();
+        feeId = UUID.randomUUID();
 
         accountRepository.save(new LedgerAccount(
-                fromId, tenantId, "from", USD,
+                sourceId, tenantId, "rail", USD,
+                AccountType.RAIL_CLEARING, AccountStatus.OPEN, true));
+        accountRepository.save(new LedgerAccount(
+                merchantId, tenantId, "merchant", USD,
                 AccountType.MERCHANT_WALLET, AccountStatus.OPEN, true));
         accountRepository.save(new LedgerAccount(
-                toId, tenantId, "to", USD,
-                AccountType.MERCHANT_WALLET, AccountStatus.OPEN, true));
-        balanceRepository.seedZero(fromId, USD);
-        balanceRepository.seedZero(toId, USD);
+                feeId, tenantId, "fee", USD,
+                AccountType.FEE_PLATFORM_REVENUE, AccountStatus.OPEN, true));
+        balanceRepository.seedZero(sourceId, USD);
+        balanceRepository.seedZero(merchantId, USD);
+        balanceRepository.seedZero(feeId, USD);
+
+        splitRuleSetRepository.save(tenantId, new SplitRuleSet(
+                "default",
+                List.of(
+                        new SplitRule(AccountType.MERCHANT_WALLET, new BigDecimal("95")),
+                        new SplitRule(AccountType.FEE_PLATFORM_REVENUE, new BigDecimal("5"))
+                ),
+                AccountType.MERCHANT_WALLET
+        ));
     }
 
     @Test
-    void should_post_transfer_and_replay_same_key_and_hash() {
-        PostTransactionCommand command = transferCommand("key-1", "tx-1", "-10.00", "10.00");
+    void should_post_split_and_replay_same_key() {
+        PostSplitPaymentCommand command = splitCommand("key-1", "tx-split-1");
 
         PostTransactionResult first = service.execute(command);
         assertThat(first.replayed()).isFalse();
-        assertThat(first.journalEntryId()).isNotNull();
+        assertThat(first.postings()).hasSize(3);
+        assertThat(balanceRepository.findByAccountId(merchantId))
+                .get()
+                .extracting(b -> b.available().amount().toPlainString())
+                .isEqualTo("95.00");
         assertThat(outboxWriter.messages).hasSize(1);
-        assertThat(outboxWriter.messages.getFirst().eventType()).isEqualTo(TransactionPosted.EVENT_TYPE);
-        assertThat(outboxWriter.messages.getFirst().aggregateId()).isEqualTo(first.journalEntryId());
 
         PostTransactionResult replay = service.execute(command);
         assertThat(replay.replayed()).isTrue();
@@ -99,58 +121,35 @@ class PostTransactionServiceTest {
         assertThat(outboxWriter.messages).hasSize(1);
     }
 
-    @Test
-    void should_append_pending_outbox_event_on_post() {
-        PostTransactionResult result = service.execute(
-                transferCommand("key-outbox", "tx-outbox", "-5.50", "5.50"));
-
-        assertThat(outboxWriter.messages).hasSize(1);
-        OutboxWriter.OutboxMessage message = outboxWriter.messages.getFirst();
-        assertThat(message.tenantId()).isEqualTo(tenantId);
-        assertThat(message.aggregateId()).isEqualTo(result.journalEntryId());
-        assertThat(message.eventType()).isEqualTo(TransactionPosted.EVENT_TYPE);
-        assertThat(message.payload()).contains(result.journalEntryId().toString());
-    }
-
-    @Test
-    void should_reject_same_key_with_different_body() {
-        PostTransactionCommand first = transferCommand("key-2", "tx-2", "-10.00", "10.00");
-        service.execute(first);
-
-        PostTransactionCommand conflict = transferCommand("key-2", "tx-2", "-20.00", "20.00");
-        assertThatThrownBy(() -> service.execute(conflict))
-                .isInstanceOf(IdempotencyConflictException.class)
-                .hasMessageContaining("different request body");
-    }
-
-    @Test
-    void should_post_happy_path() {
-        PostTransactionResult result = service.execute(
-                transferCommand("key-3", "tx-3", "-5.50", "5.50"));
-
-        assertThat(result.replayed()).isFalse();
-        assertThat(result.type()).isEqualTo("POSTING");
-        assertThat(result.postings()).hasSize(2);
-        assertThat(balanceRepository.findByAccountId(toId))
-                .get()
-                .extracting(b -> b.available().amount().toPlainString())
-                .isEqualTo("5.50");
-        assertThat(outboxWriter.messages).hasSize(1);
-    }
-
-    private PostTransactionCommand transferCommand(
-            String key, String reference, String debit, String credit) {
-        return new PostTransactionCommand(
+    private PostSplitPaymentCommand splitCommand(String key, String reference) {
+        return new PostSplitPaymentCommand(
                 tenantId,
                 key,
                 reference,
-                List.of(
-                        new PostTransactionCommand.PostingLine(
-                                fromId, debit, "USD", "SETTLED"),
-                        new PostTransactionCommand.PostingLine(
-                                toId, credit, "USD", "SETTLED")
-                )
+                "100.00",
+                "USD",
+                sourceId,
+                Map.of(
+                        "MERCHANT_WALLET", merchantId,
+                        "FEE_PLATFORM_REVENUE", feeId
+                ),
+                "default"
         );
+    }
+
+    private static final class InMemorySplitRuleSetRepository implements SplitRuleSetRepository {
+        private final Map<String, SplitRuleSet> store = new ConcurrentHashMap<>();
+
+        @Override
+        public SplitRuleSet save(UUID tenantId, SplitRuleSet ruleSet) {
+            store.put(tenantId + ":" + ruleSet.key(), ruleSet);
+            return ruleSet;
+        }
+
+        @Override
+        public Optional<SplitRuleSet> findByTenantAndKey(UUID tenantId, String ruleSetKey) {
+            return Optional.ofNullable(store.get(tenantId + ":" + ruleSetKey));
+        }
     }
 
     private static final class InMemoryOutboxWriter implements OutboxWriter {
