@@ -9,6 +9,9 @@ public record CreateLedgerAccountResult(
         String currencyCode,
         String type,
         String status,
-        boolean allowsOverdraft
+        boolean allowsOverdraft,
+        String available,
+        String pending,
+        String held
 ) {
 }

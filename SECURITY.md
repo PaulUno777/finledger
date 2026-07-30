@@ -28,3 +28,6 @@ and disclosure timeline with you.
 - Never log secrets (tokens, password hashes, private keys)
 - Never weaken CORS, TLS, RLS, or audit-trail requirements “to make it work”
 - Prefer the `SecretsProvider` port over inlining values, even for local demos
+- JWT algorithms for the public API are allowlisted to **RS256** and **ES256** only
+- Terminate **TLS 1.3** (minimum) at the reverse proxy / load balancer in front of FinLedger
+- Tenant-scoped API calls must present a JWT whose `tenant_id` claim matches the path tenant

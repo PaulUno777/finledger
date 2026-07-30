@@ -9,13 +9,16 @@ no interactive wizard at boot (wizards block health checks and orchestrated depl
 2. **Optional external file** — mount or place config under a directory listed in
    `spring.config.additional-location` (prefixed with `optional:` so absence is fine)
 3. **Environment variables** — relaxed binding (`SPRING_DATASOURCE_URL`, etc.)
-4. **Secrets** — never in YAML committed to git; use env / secret store via a
-   `SecretsProvider` port when that phase lands
+4. **Secrets** — never in YAML committed to git; use env / secret store via the
+   `SecretsProvider` port (default: `EnvSecretsProvider` — environment and system
+   properties, with a startup warning that this is for non-prod)
 
 ## Local development
 
 ```bash
 docker compose up -d
+# Required for FL-100 — point at any OIDC issuer (or JWKS URI):
+export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
 ./mvnw spring-boot:run
 ```
 
@@ -23,6 +26,17 @@ docker compose up -d
 Flyway migrates as superuser `finledger`; the app connects as non-superuser
 `finledger_app` / `finledger` so Postgres FORCE RLS is enforced (superusers bypass RLS).
 Those credentials are **dev-only**.
+
+### AuthN / AuthZ (OIDC)
+
+| Item | Contract |
+|------|----------|
+| Algorithms | JWT `alg` must be `RS256` or `ES256` |
+| Scopes | `ledger:read`, `ledger:write`, `ledger:admin` |
+| Tenant binding | Claim `tenant_id` (UUID) must match `/api/v1/tenants/{tenantId}/…` |
+| Create tenant | `POST /api/v1/tenants` requires `ledger:admin` |
+| Public | `/actuator/health` only |
+| TLS | Terminate TLS 1.3 at the reverse proxy / load balancer in front of the service |
 
 If Flyway reports a checksum mismatch after a migration file was edited, recreate
 the local volume: `docker compose down -v && docker compose up -d`.
@@ -50,6 +64,8 @@ the plan §18.1; full image contract arrives in FL-140).
 | `SPRING_DATA_REDIS_HOST` | Redis host |
 | `SPRING_DATA_REDIS_PORT` | Redis port |
 | `SPRING_CONFIG_ADDITIONAL_LOCATION` | Optional extra config locations |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (preferred) |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | JWKS URI alternative to issuer |
 | `SERVER_PORT` | HTTP port (default `8080`) |
 
 Production profile (`application-prod.yml`) expects secrets via env (`DB_URL`,

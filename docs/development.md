@@ -34,11 +34,11 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-030 | PostTransaction + API idempotency | `feature/FL-030-post-transaction` | done |
 | FL-040 | Transactional outbox | `feature/FL-040-outbox` | done |
 | FL-050 | Multi-tenant + RLS | `feature/FL-050-multi-tenant-rls` | done |
-| FL-060 | FX providers | `feature/FL-060-fx-providers` | done (pending merge) |
-| FL-070 | Split engine + fees | `feature/FL-070-split-engine` | pending |
-| FL-080 | Balance types | `feature/FL-080-balance-types` | pending |
-| FL-090 | Audit trail | `feature/FL-090-audit-trail` | pending |
-| FL-100 | Security (OIDC, TLS contract) | `feature/FL-100-security` | pending |
+| FL-060 | FX providers | `feature/FL-060-fx-providers` | done |
+| FL-070 | Split engine + fees | `feature/FL-070-split-engine` | done |
+| FL-080 | Balance types | `feature/FL-080-balance-types` | done |
+| FL-090 | Audit trail | `feature/FL-090-audit-trail` | done |
+| FL-100 | Security (OIDC, TLS contract) | `feature/FL-100-security` | done (pending merge) |
 | FL-110 | Payment rails | `feature/FL-110-payment-rails` | pending |
 | FL-120 | CLI module | `feature/FL-120-cli` | pending |
 | FL-130 | Fraud module (optional) | `feature/FL-130-fraud-module` | pending |
