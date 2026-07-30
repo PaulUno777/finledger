@@ -41,8 +41,8 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-100 | Security (OIDC, TLS contract) | `feature/FL-100-security` | done |
 | FL-110 | Payment rails | `feature/FL-110-payment-rails` | done |
 | FL-120 | CLI module | `feature/FL-120-cli` | done |
-| FL-130 | Fraud module (optional) | `feature/FL-130-fraud-module` | pending |
-| FL-140 | CI/CD + Docker Hub | `feature/FL-140-cicd-docker` | pending |
+| FL-130 | Fraud module (optional) | `feature/FL-130-fraud-module` | done |
+| FL-140 | CI/CD + Docker Hub | `feature/FL-140-cicd-docker` | done (pending merge) |
 | FL-150 | Observability | `feature/FL-150-observability` | pending |
 | FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | pending |
 | FL-170 | Hardening | `feature/FL-170-hardening` | pending |

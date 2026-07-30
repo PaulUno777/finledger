@@ -32,6 +32,7 @@ import com.pauluno.finledger.application.port.out.IdempotencyStore;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
 import com.pauluno.finledger.application.port.out.OutboxWriter;
+import com.pauluno.finledger.application.port.out.TransactionRiskCheckPort;
 import com.pauluno.finledger.domain.exception.AccountClosedException;
 import com.pauluno.finledger.domain.exception.CurrencyMismatchException;
 import com.pauluno.finledger.domain.exception.ExchangeRateNotFoundException;
@@ -59,6 +60,7 @@ public class PostTransactionService implements PostTransactionUseCase {
     private final JournalEntryRepository journalEntryRepository;
     private final OutboxWriter outboxWriter;
     private final ExchangeRateProvider exchangeRateProvider;
+    private final RiskGateService riskGateService;
     private final ObjectMapper objectMapper;
 
     public PostTransactionService(
@@ -67,7 +69,8 @@ public class PostTransactionService implements PostTransactionUseCase {
             AccountBalanceRepository accountBalanceRepository,
             JournalEntryRepository journalEntryRepository,
             OutboxWriter outboxWriter,
-            ExchangeRateProvider exchangeRateProvider
+            ExchangeRateProvider exchangeRateProvider,
+            RiskGateService riskGateService
     ) {
         this.idempotencyStore = idempotencyStore;
         this.ledgerAccountRepository = ledgerAccountRepository;
@@ -75,6 +78,7 @@ public class PostTransactionService implements PostTransactionUseCase {
         this.journalEntryRepository = journalEntryRepository;
         this.outboxWriter = outboxWriter;
         this.exchangeRateProvider = exchangeRateProvider;
+        this.riskGateService = riskGateService;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -151,6 +155,23 @@ public class PostTransactionService implements PostTransactionUseCase {
             Instant occurredAt = Instant.now();
             ExchangeRate frozenRate = resolveFrozenRate(command, occurredAt);
 
+            List<TransactionRiskCheckPort.PostingLeg> riskLegs = new ArrayList<>();
+            for (PostTransactionCommand.PostingLine line : command.postings()) {
+                LedgerAccount account = accounts.get(line.accountId());
+                riskLegs.add(new TransactionRiskCheckPort.PostingLeg(
+                        line.accountId(),
+                        account.ownerRef(),
+                        new java.math.BigDecimal(line.amount()),
+                        line.currencyCode()
+                ));
+            }
+            riskGateService.assessAndEnforce(new TransactionRiskCheckPort.RiskCheckRequest(
+                    command.tenantId(),
+                    command.transactionReference(),
+                    riskLegs,
+                    occurredAt
+            ));
+
             JournalEntry entry = JournalEntry.create(
                     command.tenantId(),
                     key,
@@ -163,6 +184,8 @@ public class PostTransactionService implements PostTransactionUseCase {
             );
 
             JournalEntry saved = journalEntryRepository.save(entry);
+            riskGateService.attachJournalEntry(
+                    command.tenantId(), command.transactionReference(), saved.id());
             appendOutbox(saved);
             return toResult(saved, false);
         } catch (InvalidJournalEntryException

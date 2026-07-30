@@ -35,6 +35,7 @@ import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
 import com.pauluno.finledger.application.port.out.OutboxWriter;
 import com.pauluno.finledger.application.port.out.SplitPlanResolver;
 import com.pauluno.finledger.application.port.out.SplitRuleSetRepository;
+import com.pauluno.finledger.application.port.out.TransactionRiskCheckPort;
 import com.pauluno.finledger.domain.exception.AccountClosedException;
 import com.pauluno.finledger.domain.exception.CurrencyMismatchException;
 import com.pauluno.finledger.domain.exception.InsufficientFundsException;
@@ -63,6 +64,7 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
     private final OutboxWriter outboxWriter;
     private final SplitRuleSetRepository splitRuleSetRepository;
     private final SplitPlanResolver splitPlanResolver;
+    private final RiskGateService riskGateService;
     private final ObjectMapper objectMapper;
 
     public PostSplitPaymentService(
@@ -72,7 +74,8 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
             JournalEntryRepository journalEntryRepository,
             OutboxWriter outboxWriter,
             SplitRuleSetRepository splitRuleSetRepository,
-            SplitPlanResolver splitPlanResolver
+            SplitPlanResolver splitPlanResolver,
+            RiskGateService riskGateService
     ) {
         this.idempotencyStore = idempotencyStore;
         this.ledgerAccountRepository = ledgerAccountRepository;
@@ -81,6 +84,7 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
         this.outboxWriter = outboxWriter;
         this.splitRuleSetRepository = splitRuleSetRepository;
         this.splitPlanResolver = splitPlanResolver;
+        this.riskGateService = riskGateService;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -176,6 +180,24 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
                 postings.add(new Posting(leg.accountId(), leg.amount(), SettlementStatus.SETTLED));
             }
 
+            Instant occurredAt = Instant.now();
+            List<TransactionRiskCheckPort.PostingLeg> riskLegs = new ArrayList<>();
+            for (Posting posting : postings) {
+                LedgerAccount account = accounts.get(posting.accountId());
+                riskLegs.add(new TransactionRiskCheckPort.PostingLeg(
+                        posting.accountId(),
+                        account.ownerRef(),
+                        posting.amount().amount(),
+                        posting.amount().currency().getCurrencyCode()
+                ));
+            }
+            riskGateService.assessAndEnforce(new TransactionRiskCheckPort.RiskCheckRequest(
+                    command.tenantId(),
+                    command.transactionReference(),
+                    riskLegs,
+                    occurredAt
+            ));
+
             JournalEntry entry = JournalEntry.create(
                     command.tenantId(),
                     key,
@@ -183,11 +205,13 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
                     postings,
                     accounts,
                     balances,
-                    Instant.now(),
+                    occurredAt,
                     null
             );
 
             JournalEntry saved = journalEntryRepository.save(entry);
+            riskGateService.attachJournalEntry(
+                    command.tenantId(), command.transactionReference(), saved.id());
             appendOutbox(saved);
             return PostTransactionService.toResult(saved, false);
         } catch (InvalidJournalEntryException

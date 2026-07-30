@@ -46,12 +46,24 @@ infrastructure implements ports (JPA, outbox, FX, security, …)
 
 ## Quick start
 
+Postgres + Redis:
+
 ```bash
 docker compose up -d
-./mvnw -pl finledger spring-boot:run -Dspring-boot.run.profiles=test
+export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
+./mvnw -pl finledger spring-boot:run
 ```
 
-Health: `GET http://localhost:8080/actuator/health`
+Or run the server image (Compose profile `with-app`) — put the OIDC issuer in `.env` first:
+
+```bash
+docker compose --profile with-app up -d --build
+```
+
+Health: `GET http://localhost:8081/actuator/health` (container) or
+`GET http://localhost:8080/actuator/health` (local `spring-boot:run`).
+
+Published images (after a `v*.*.*` tag): `${DOCKERHUB_USERNAME}/finledger:<semver>`.
 
 Provisioning CLI (separate module — see [ADR-010](docs/adr/ADR-010-cli-http-client-module.md)):
 
@@ -98,8 +110,8 @@ curl -s -X POST "http://localhost:8080/api/v1/tenants/$TENANT/journal-entries" \
   }'
 ```
 
-FL-030 note: posting currency must match each account’s currency (no FX conversion yet).
-Auth is temporarily open (`permitAll`) until FL-100.
+FL-030 note: posting currency must match each account’s currency unless an FX
+path is configured (FL-060). API routes require OIDC Bearer JWTs (FL-100).
 
 ## Guarantees (target)
 
@@ -131,10 +143,9 @@ Do not modify domain validators to “support” a vendor.
 
 ## Status
 
-**v0.x — early foundation.** Track A done. Domain (FL-010), persistence (FL-020), and
-PostTransaction API (FL-030) are on the roadmap in [docs/development.md](docs/development.md).
-
-Docker Hub image badges and GitHub Release badges will appear after CI/CD phase FL-140.
+**v0.x — early foundation.** Roadmap tickets and status live in
+[docs/development.md](docs/development.md). Docker image contract:
+[ADR-012](docs/adr/ADR-012-docker-distribution.md).
 
 ## License
 

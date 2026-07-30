@@ -63,6 +63,11 @@ class PostSplitPaymentServiceTest {
         outboxWriter = new InMemoryOutboxWriter();
         splitRuleSetRepository = new InMemorySplitRuleSetRepository();
         SplitPlanResolver resolver = new DeclarativeSplitPlanResolver();
+        RiskGateService riskGate = new RiskGateService(
+                request -> com.pauluno.finledger.application.port.out.TransactionRiskCheckPort.RiskDecision.allow(),
+                new EmptyFraudConfigRepository(),
+                new AllowAllRiskDecisionRepository()
+        );
         service = new PostSplitPaymentService(
                 idempotencyStore,
                 accountRepository,
@@ -70,7 +75,8 @@ class PostSplitPaymentServiceTest {
                 journalEntryRepository,
                 outboxWriter,
                 splitRuleSetRepository,
-                resolver
+                resolver,
+                riskGate
         );
 
         tenantId = UUID.randomUUID();
@@ -301,6 +307,43 @@ class PostSplitPaymentServiceTest {
             return entries.stream()
                     .filter(e -> e.tenantId().equals(tenantId) && e.idempotencyKey().equals(key))
                     .findFirst();
+        }
+    }
+
+    private static final class EmptyFraudConfigRepository
+            implements com.pauluno.finledger.application.port.out.TenantFraudConfigRepository {
+        @Override
+        public com.pauluno.finledger.application.fraud.TenantFraudConfig save(
+                com.pauluno.finledger.application.fraud.TenantFraudConfig config) {
+            return config;
+        }
+
+        @Override
+        public Optional<com.pauluno.finledger.application.fraud.TenantFraudConfig> findByTenantId(UUID tenantId) {
+            return Optional.empty();
+        }
+    }
+
+    private static final class AllowAllRiskDecisionRepository
+            implements com.pauluno.finledger.application.port.out.RiskDecisionRepository {
+        @Override
+        public RiskDecisionRecord save(RiskDecisionRecord record) {
+            return record;
+        }
+
+        @Override
+        public long countSyncSince(UUID tenantId, java.time.Instant since) {
+            return 0;
+        }
+
+        @Override
+        public Optional<RiskDecisionRecord> findAsyncHoldForSource(UUID tenantId, UUID sourceJournalEntryId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public List<RiskDecisionRecord> findByTransactionReference(UUID tenantId, String transactionReference) {
+            return List.of();
         }
     }
 }
