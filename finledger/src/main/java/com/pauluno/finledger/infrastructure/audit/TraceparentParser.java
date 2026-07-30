@@ -5,7 +5,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Manual W3C Trace Context {@code traceparent} parser (no OTEL dependency until FL-150).
+ * Manual W3C Trace Context {@code traceparent} parser.
+ * Primary correlation uses Micrometer Tracing / OpenTelemetry (FL-150);
+ * this remains as a fallback when no current span is available.
  */
 public final class TraceparentParser {
 

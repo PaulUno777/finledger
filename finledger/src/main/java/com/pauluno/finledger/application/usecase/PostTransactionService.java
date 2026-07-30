@@ -31,6 +31,7 @@ import com.pauluno.finledger.application.port.out.ExchangeRateProvider;
 import com.pauluno.finledger.application.port.out.IdempotencyStore;
 import com.pauluno.finledger.application.port.out.JournalEntryRepository;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
+import com.pauluno.finledger.application.port.out.LedgerMetrics;
 import com.pauluno.finledger.application.port.out.OutboxWriter;
 import com.pauluno.finledger.application.port.out.TransactionRiskCheckPort;
 import com.pauluno.finledger.domain.exception.AccountClosedException;
@@ -61,6 +62,7 @@ public class PostTransactionService implements PostTransactionUseCase {
     private final OutboxWriter outboxWriter;
     private final ExchangeRateProvider exchangeRateProvider;
     private final RiskGateService riskGateService;
+    private final LedgerMetrics ledgerMetrics;
     private final ObjectMapper objectMapper;
 
     public PostTransactionService(
@@ -70,7 +72,8 @@ public class PostTransactionService implements PostTransactionUseCase {
             JournalEntryRepository journalEntryRepository,
             OutboxWriter outboxWriter,
             ExchangeRateProvider exchangeRateProvider,
-            RiskGateService riskGateService
+            RiskGateService riskGateService,
+            LedgerMetrics ledgerMetrics
     ) {
         this.idempotencyStore = idempotencyStore;
         this.ledgerAccountRepository = ledgerAccountRepository;
@@ -79,6 +82,7 @@ public class PostTransactionService implements PostTransactionUseCase {
         this.outboxWriter = outboxWriter;
         this.exchangeRateProvider = exchangeRateProvider;
         this.riskGateService = riskGateService;
+        this.ledgerMetrics = ledgerMetrics;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -187,6 +191,7 @@ public class PostTransactionService implements PostTransactionUseCase {
             riskGateService.attachJournalEntry(
                     command.tenantId(), command.transactionReference(), saved.id());
             appendOutbox(saved);
+            ledgerMetrics.journalPosted();
             return toResult(saved, false);
         } catch (InvalidJournalEntryException
                  | CurrencyMismatchException
