@@ -30,11 +30,11 @@ PRs are human-owned (agents do not open them unless asked).
 | Ticket | Phase | Branch slug | Status |
 |--------|-------|-------------|--------|
 | FL-010 | Domain core | `feature/FL-010-domain-core` | done |
-| FL-020 | Persistence + Flyway | `feature/FL-020-persistence` | done (pending merge) |
-| FL-030 | PostTransaction + API idempotency | `feature/FL-030-post-transaction` | pending |
-| FL-040 | Transactional outbox | `feature/FL-040-outbox` | pending |
-| FL-050 | Multi-tenant + RLS | `feature/FL-050-multi-tenant-rls` | pending |
-| FL-060 | FX providers | `feature/FL-060-fx-providers` | pending |
+| FL-020 | Persistence + Flyway | `feature/FL-020-persistence` | done |
+| FL-030 | PostTransaction + API idempotency | `feature/FL-030-post-transaction` | done |
+| FL-040 | Transactional outbox | `feature/FL-040-outbox` | done |
+| FL-050 | Multi-tenant + RLS | `feature/FL-050-multi-tenant-rls` | done |
+| FL-060 | FX providers | `feature/FL-060-fx-providers` | done (pending merge) |
 | FL-070 | Split engine + fees | `feature/FL-070-split-engine` | pending |
 | FL-080 | Balance types | `feature/FL-080-balance-types` | pending |
 | FL-090 | Audit trail | `feature/FL-090-audit-trail` | pending |

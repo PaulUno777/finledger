@@ -30,12 +30,15 @@ class FinledgerApplicationTests {
 	@DynamicPropertySource
 	static void registerProperties(DynamicPropertyRegistry registry) {
 		registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-		registry.add("spring.datasource.username", POSTGRES::getUsername);
-		registry.add("spring.datasource.password", POSTGRES::getPassword);
+		registry.add("spring.datasource.username", () -> "finledger_app");
+		registry.add("spring.datasource.password", () -> "finledger");
+		registry.add("spring.flyway.user", POSTGRES::getUsername);
+		registry.add("spring.flyway.password", POSTGRES::getPassword);
 		registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
 		registry.add("spring.flyway.enabled", () -> "true");
 		registry.add("spring.data.redis.host", REDIS::getHost);
 		registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
+		registry.add("finledger.outbox.poll-interval-ms", () -> "3600000");
 		registry.add("spring.autoconfigure.exclude",
 				() -> "org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration");
 	}

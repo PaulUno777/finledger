@@ -4,7 +4,7 @@ spring:
 
   datasource:
     url: jdbc:postgresql://localhost:5432/finledger
-    username: finledger
+    username: finledger_app
     password: finledger
 
   jpa:
@@ -13,6 +13,8 @@ spring:
 
   flyway:
     enabled: true
+    user: finledger
+    password: finledger
 
   data:
     redis:
