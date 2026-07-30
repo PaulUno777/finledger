@@ -19,8 +19,10 @@ docker compose up -d
 ./mvnw spring-boot:run
 ```
 
-`application-local.yml` / `application-test.yml` point at Compose Postgres/Redis
-(`finledger` / `finledger` on localhost). Those credentials are **dev-only**.
+`application-local.yml` / `application-test.yml` point at Compose Postgres/Redis.
+Flyway migrates as superuser `finledger`; the app connects as non-superuser
+`finledger_app` / `finledger` so Postgres FORCE RLS is enforced (superusers bypass RLS).
+Those credentials are **dev-only**.
 
 If Flyway reports a checksum mismatch after a migration file was edited, recreate
 the local volume: `docker compose down -v && docker compose up -d`.
