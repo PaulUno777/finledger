@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Split engine + fees (FL-070): declarative `SplitRuleSet` / `SplitPlanEvaluator`, `FeeReversalPolicy` (`NO_REVERSE` / `PRO_RATA`), `POST …/splits` + `POST …/refunds`, V7 `tenant_split_rule_set` / `tenant_fee_config`
 - FX providers (FL-060): `ExchangeRateProvider` chain (override → external+CB → cache), `tenant_fx_config` / `fx_rate_override`, rate freeze on journal, FX REST under `/fx`
 - Multi-tenant hierarchy + Postgres RLS (FL-050): `tenant` / `tenant_ancestry`, FORCE RLS on ledger tables, `TenantContext` + `SET LOCAL`, `POST /api/v1/tenants`
 - Transactional outbox (FL-040): `outbox_event` table, `TransactionPosted` via `OutboxWriter` in the same TX as journal post, scheduled poller + logging `EventPublisher`
