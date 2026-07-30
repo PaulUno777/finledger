@@ -48,10 +48,17 @@ infrastructure implements ports (JPA, outbox, FX, security, …)
 
 ```bash
 docker compose up -d
-./mvnw spring-boot:run -Dspring-boot.run.profiles=test
+./mvnw -pl finledger spring-boot:run -Dspring-boot.run.profiles=test
 ```
 
 Health: `GET http://localhost:8080/actuator/health`
+
+Provisioning CLI (separate module — see [ADR-010](docs/adr/ADR-010-cli-http-client-module.md)):
+
+```bash
+export FINLEDGER_TOKEN=<jwt>
+./mvnw -pl finledger-cli exec:java -- tenant create --name Acme --type STANDALONE
+```
 
 ## Configuration
 

@@ -19,7 +19,7 @@ no interactive wizard at boot (wizards block health checks and orchestrated depl
 docker compose up -d
 # Required for FL-100 — point at any OIDC issuer (or JWKS URI):
 export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
-./mvnw spring-boot:run
+./mvnw -pl finledger spring-boot:run
 ```
 
 `application-local.yml` / `application-test.yml` point at Compose Postgres/Redis.
@@ -67,6 +67,8 @@ the plan §18.1; full image contract arrives in FL-140).
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (preferred) |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | JWKS URI alternative to issuer |
 | `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET` | HMAC secret for inbound rail settlement webhooks |
+| `FINLEDGER_BASE_URL` | CLI only — FinLedger API base URL (default `http://localhost:8080`) |
+| `FINLEDGER_TOKEN` | CLI only — Bearer JWT for `/api/v1` (needs `ledger:admin` to create tenants) |
 | `SERVER_PORT` | HTTP port (default `8080`) |
 
 Production profile (`application-prod.yml`) expects secrets via env (`DB_URL`,
@@ -74,9 +76,10 @@ Production profile (`application-prod.yml`) expects secrets via env (`DB_URL`,
 
 ## First boot without a tenant
 
-The service must start and become healthy even if no tenant exists yet. Tenant
-provisioning will use the admin API / CLI (roadmap FL-120). Do not add a blocking
-setup wizard.
+The service must start and become healthy even if no tenant exists yet. When the
+DB has zero tenants, the server logs an INFO hint pointing at
+`finledger-cli tenant create` or `POST /api/v1/tenants`. Do not add a blocking
+setup wizard. See [ADR-010](adr/ADR-010-cli-http-client-module.md).
 
 ## Feature / adapter toggles (future)
 

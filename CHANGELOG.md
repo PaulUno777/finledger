@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- CLI provisioning module (FL-120): multi-module Maven (`finledger` + `finledger-cli`), Picocli/JLine HTTP client of `/api/v1`, no-tenant boot INFO hint
 - Payment rails (FL-110): `RailAdapter` + manual clearing, PENDING→SETTLED journals via `RAIL_CLEARING`, reconciliation breaks, inbound HMAC settlement webhook
 - Security (FL-100): OIDC Resource Server (RS256/ES256 allowlist), scopes `ledger:read|write|admin`, JWT `tenant_id` claim binding, `SecretsProvider` env default, TLS 1.3 edge contract
 - Audit trail (FL-090): hash-chained `audit_log`, `@Auditable` AOP on mutating use cases, `traceparent` correlation, integrity verify API/job
