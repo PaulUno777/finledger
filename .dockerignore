@@ -1,0 +1,37 @@
+# Build artifacts
+**/target/
+**/build/
+
+# VCS / IDE / local tooling
+.git/
+.github/
+.cursor/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Knowledge graph / local caches
+graphify-out/
+.cache/
+
+# Docs & plans not needed for the image build
+docs/
+*.md
+!README.md
+LICENSE
+CHANGELOG.md
+CONTRIBUTING.md
+SECURITY.md
+CODE_OF_CONDUCT.md
+
+# CLI sources are not packaged into the server image (-pl finledger)
+finledger-cli/src/
+finledger-cli/target/
+
+# Local config / secrets
+config/
+.env
+.env.*
+*.pem
+*.key

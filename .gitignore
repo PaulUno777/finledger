@@ -37,6 +37,8 @@ build/
 .env
 .DS_Store
 logs/
+# Local optional Spring config mount (docker-compose ./config)
+/config/
 # graphify knowledge graph (local)
 graphify-out/
 
