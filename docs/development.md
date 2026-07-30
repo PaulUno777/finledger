@@ -39,14 +39,14 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-080 | Balance types | `feature/FL-080-balance-types` | done |
 | FL-090 | Audit trail | `feature/FL-090-audit-trail` | done |
 | FL-100 | Security (OIDC, TLS contract) | `feature/FL-100-security` | done |
-| FL-110 | Payment rails | `feature/FL-110-payment-rails` | done (pending merge) |
-| FL-120 | CLI module | `feature/FL-120-cli` | pending |
+| FL-110 | Payment rails | `feature/FL-110-payment-rails` | done |
+| FL-120 | CLI module | `feature/FL-120-cli` | done (pending merge) |
 | FL-130 | Fraud module (optional) | `feature/FL-130-fraud-module` | pending |
 | FL-140 | CI/CD + Docker Hub | `feature/FL-140-cicd-docker` | pending |
 | FL-150 | Observability | `feature/FL-150-observability` | pending |
-| FL-160 | Contract tests + sdk-reference | `feature/FL-160-contracts-sdk-ref` | pending |
+| FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | pending |
 | FL-170 | Hardening | `feature/FL-170-hardening` | pending |
-| FL-180 | Post-v1 official SDKs | `feature/FL-180-official-sdks` | pending |
+| FL-180 | Post-v1 official multi-lang SDKs (separate repos) | `feature/FL-180-official-sdks` | pending |
 
 ## Phase gate checklist
 
@@ -58,10 +58,31 @@ PRs are human-owned (agents do not open them unless asked).
 
 ## Maven commands
 
+The repo is a multi-module reactor (`finledger` server + `finledger-cli`).
+
 ```bash
-./mvnw test          # unit + ArchUnit + smoke
-./mvnw verify        # includes broader verification as profiles grow
+./mvnw test                         # all modules: unit + ArchUnit + smoke
+./mvnw -pl finledger test           # server only
+./mvnw -pl finledger-cli test       # CLI only
+./mvnw -pl finledger spring-boot:run
+./mvnw -pl finledger-cli package    # shaded runnable CLI jar
+./mvnw verify                       # broader verification as profiles grow
 ```
+
+### CLI (FL-120)
+
+```bash
+export FINLEDGER_BASE_URL=http://localhost:8080   # optional; this is the default
+export FINLEDGER_TOKEN=<jwt-with-ledger:admin-or-write>
+
+./mvnw -pl finledger-cli exec:java -- \
+  tenant create --name Acme --type STANDALONE
+
+# or after package:
+java -jar finledger-cli/target/finledger-cli-0.0.1-SNAPSHOT.jar shell
+```
+
+Commands: `tenant create`, `account create`, `fx config`, `split-rules put`, `shell`.
 
 Test tags (target convention):
 
