@@ -63,6 +63,30 @@ class AuditHashChainTest {
     }
 
     @Test
+    void should_hash_nano_instant_same_as_truncated_to_micros() {
+        Instant withNanos = Instant.parse("2026-07-30T10:00:00.123456789Z");
+        Instant microsOnly = Instant.parse("2026-07-30T10:00:00.123456Z");
+        String prev = AuditHashChain.GENESIS_PREV_HASH;
+        String payloadHash = AuditHashChain.payloadHash("{\"action\":\"CREATE_TENANT\"}");
+
+        String hashFromNanos = AuditHashChain.currentHash(prev, payloadHash, withNanos, "actor");
+        String hashFromMicros = AuditHashChain.currentHash(prev, payloadHash, microsOnly, "actor");
+        assertThat(hashFromNanos).isEqualTo(hashFromMicros);
+        assertThat(AuditHashChain.truncateToMicros(withNanos)).isEqualTo(microsOnly);
+
+        List<AuditHashChain.AuditChainLink> links = List.of(
+                new AuditHashChain.AuditChainLink(
+                        "{\"action\":\"CREATE_TENANT\"}",
+                        payloadHash,
+                        prev,
+                        hashFromNanos,
+                        microsOnly,
+                        "actor")
+        );
+        assertThat(AuditHashChain.verify(links).valid()).isTrue();
+    }
+
+    @Test
     void should_detect_broken_prev_hash_link() {
         Instant t0 = Instant.parse("2026-07-30T10:00:00Z");
         Instant t1 = Instant.parse("2026-07-30T10:00:01Z");

@@ -1,10 +1,10 @@
 package com.pauluno.finledger.infrastructure.audit;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import org.hibernate.Session;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.pauluno.finledger.application.audit.AuditRecord;
 import com.pauluno.finledger.application.port.out.AuditLogWriter;
@@ -27,7 +27,8 @@ public class JpaAuditLogWriter implements AuditLogWriter {
 
     @Override
     public void append(AuditRecord record) {
-        // Ensure RLS visibility for this tenant even when TX began without TenantContext
+        // Ensure RLS visibility for this tenant even when TX began without
+        // TenantContext
         // (e.g. CreateTenant) — SET LOCAL is scoped to the current transaction.
         setTenantGuc(record.tenantId());
 
@@ -35,14 +36,15 @@ public class JpaAuditLogWriter implements AuditLogWriter {
                 .map(AuditLogEntity::getCurrentHash)
                 .orElse(AuditHashChain.GENESIS_PREV_HASH);
 
+        Instant occurredAt = AuditHashChain.truncateToMicros(record.occurredAt());
         String payloadHash = AuditHashChain.payloadHash(record.payloadJson());
         String currentHash = AuditHashChain.currentHash(
-                prevHash, payloadHash, record.occurredAt(), record.actor());
+                prevHash, payloadHash, occurredAt, record.actor());
 
         AuditLogEntity entity = new AuditLogEntity();
         entity.setId(UUID.randomUUID());
         entity.setTenantId(record.tenantId());
-        entity.setOccurredAt(record.occurredAt());
+        entity.setOccurredAt(occurredAt);
         entity.setActor(record.actor());
         entity.setAction(record.action());
         entity.setResourceType(record.resourceType());
