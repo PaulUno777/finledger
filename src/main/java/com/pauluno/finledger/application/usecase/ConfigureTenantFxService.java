@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.pauluno.finledger.application.audit.Auditable;
 import com.pauluno.finledger.application.dto.ConfigureTenantFxCommand;
 import com.pauluno.finledger.application.dto.TenantFxConfigResult;
 import com.pauluno.finledger.application.port.in.ConfigureTenantFxUseCase;
@@ -26,6 +27,7 @@ public class ConfigureTenantFxService implements ConfigureTenantFxUseCase {
 
     @Override
     @Transactional
+    @Auditable(action = "CONFIGURE_FX", resourceType = "TENANT_FX_CONFIG")
     public TenantFxConfigResult execute(ConfigureTenantFxCommand command) {
         Currency pivot = Currency.getInstance(command.pivotCurrencyCode());
         Set<Currency> supported = new LinkedHashSet<>();

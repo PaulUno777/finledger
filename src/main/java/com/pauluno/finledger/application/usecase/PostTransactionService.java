@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.pauluno.finledger.application.audit.Auditable;
 import com.pauluno.finledger.application.dto.PostTransactionCommand;
 import com.pauluno.finledger.application.dto.PostTransactionResult;
 import com.pauluno.finledger.application.event.TransactionPosted;
@@ -82,6 +83,7 @@ public class PostTransactionService implements PostTransactionUseCase {
 
     @Override
     @Transactional
+    @Auditable(action = "POST_TRANSACTION", resourceType = "JOURNAL_ENTRY")
     public PostTransactionResult execute(PostTransactionCommand command) {
         String requestHash = hashRequest(command);
         IdempotencyKey key = new IdempotencyKey(command.idempotencyKey());

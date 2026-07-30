@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.pauluno.finledger.application.audit.Auditable;
 import com.pauluno.finledger.application.dto.PostTransactionResult;
 import com.pauluno.finledger.application.dto.RefundTransactionCommand;
 import com.pauluno.finledger.application.event.TransactionPosted;
@@ -82,6 +83,7 @@ public class RefundTransactionService implements RefundTransactionUseCase {
 
     @Override
     @Transactional
+    @Auditable(action = "REFUND_TRANSACTION", resourceType = "JOURNAL_ENTRY")
     public PostTransactionResult execute(RefundTransactionCommand command) {
         String requestHash = hashRequest(command);
         IdempotencyKey key = new IdempotencyKey(command.idempotencyKey());

@@ -7,6 +7,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.pauluno.finledger.application.audit.Auditable;
 import com.pauluno.finledger.application.dto.ConfigureSplitRulesCommand;
 import com.pauluno.finledger.application.dto.SplitRuleSetResult;
 import com.pauluno.finledger.application.port.in.ConfigureSplitRulesUseCase;
@@ -26,6 +27,7 @@ public class ConfigureSplitRulesService implements ConfigureSplitRulesUseCase {
 
     @Override
     @Transactional
+    @Auditable(action = "CONFIGURE_SPLIT_RULES", resourceType = "SPLIT_RULE_SET")
     public SplitRuleSetResult execute(ConfigureSplitRulesCommand command) {
         List<SplitRule> rules = new ArrayList<>();
         for (ConfigureSplitRulesCommand.RuleLine line : command.rules()) {
