@@ -66,6 +66,7 @@ the plan §18.1; full image contract arrives in FL-140).
 | `SPRING_CONFIG_ADDITIONAL_LOCATION` | Optional extra config locations |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (preferred) |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | JWKS URI alternative to issuer |
+| `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET` | HMAC secret for inbound rail settlement webhooks |
 | `SERVER_PORT` | HTTP port (default `8080`) |
 
 Production profile (`application-prod.yml`) expects secrets via env (`DB_URL`,
