@@ -12,6 +12,11 @@
 	<description>Double-entry, multi-currency, multi-tenant ledger for payment aggregators</description>
 	<dependencies>
 		<dependency>
+			<groupId>com.pauluno</groupId>
+			<artifactId>finledger-security-policy</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>

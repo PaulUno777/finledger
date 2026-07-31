@@ -7,11 +7,13 @@ WORKDIR /workspace
 COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
+COPY finledger-security-policy/pom.xml finledger-security-policy/
 COPY finledger/pom.xml finledger/
 COPY finledger-cli/pom.xml finledger-cli/
 
 RUN chmod +x mvnw
 
+COPY finledger-security-policy/src finledger-security-policy/src
 COPY finledger/src finledger/src
 
 RUN ./mvnw -B -pl finledger -am package -DskipTests \
