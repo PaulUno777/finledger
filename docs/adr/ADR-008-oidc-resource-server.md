@@ -41,10 +41,13 @@ temporarily open until this phase (`permitAll` + disabled resource server).
 - Positive: API is authenticated; tenant path cannot be spoofed with another
   tenant’s token; algorithm downgrade attacks blocked.
 - Trade-off: local runs require a real issuer/JWKS (or test JwtDecoder in tests).
+- **Amended by ADR-014:** eval/CI may use `static-token` or `disabled` modes;
+  production remains `enforced` only (code interlock).
 - Follow-up: sensitive-read audit; Bucket4j; webhook HMAC with rails (FL-110);
   optional Vault secrets adapter.
 
 ## References
 
 - `docs/PLAN_LEDGER_FINTECH.md` §11, §19 item 10
-- `SecurityConfig`, `AlgorithmAllowlistingJwtDecoder`, `TenantClaimAuthorizationFilter`
+- `EnforcedSecurityConfig`, `AlgorithmAllowlistingJwtDecoder`, `TenantClaimAuthorizationFilter`
+- [ADR-014](ADR-014-security-modes.md) — runnable security modes

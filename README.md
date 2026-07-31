@@ -46,7 +46,18 @@ infrastructure implements ports (JPA, outbox, FX, security, …)
 
 ## Quick start
 
-Postgres + Redis:
+**Fastest eval (Blnk-style — no IdP):**
+
+```bash
+git clone https://github.com/PaulUno777/finledger.git && cd finledger
+docker compose --profile sandbox up -d --build
+# Read config/sandbox-ready.txt (or container logs) for copy-paste curls
+```
+
+Production / CTO checklist outline: [docs/INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md)
+(finalized after remaining roadmap validation). Ops model: [ADR-015](docs/adr/ADR-015-operational-model.md).
+
+OIDC-enforced local run:
 
 ```bash
 docker compose up -d
@@ -54,7 +65,7 @@ export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/rea
 ./mvnw -pl finledger spring-boot:run
 ```
 
-Or run the server image (Compose profile `with-app`) — put the OIDC issuer in `.env` first:
+Or run the server image with OIDC (`with-app`) — put the issuer in `.env` first:
 
 ```bash
 docker compose --profile with-app up -d --build
@@ -75,8 +86,10 @@ docker compose --profile with-app --profile observability up -d --build
 Provisioning CLI (separate module — see [ADR-010](docs/adr/ADR-010-cli-http-client-module.md)):
 
 ```bash
-export FINLEDGER_TOKEN=<jwt>
+# Sandbox mode needs no token; static-token uses the dumped secret as --token
+export FINLEDGER_TOKEN=<jwt-or-static-token>
 ./mvnw -pl finledger-cli exec:java -- tenant create --name Acme --type STANDALONE
+./mvnw -pl finledger-cli exec:java -- config init --mode disabled
 ```
 
 ## Configuration
@@ -118,7 +131,8 @@ curl -s -X POST "http://localhost:8080/api/v1/tenants/$TENANT/journal-entries" \
 ```
 
 FL-030 note: posting currency must match each account’s currency unless an FX
-path is configured (FL-060). API routes require OIDC Bearer JWTs (FL-100).
+path is configured (FL-060). API routes require OIDC Bearer JWTs in `enforced`
+mode (FL-100); use Compose `sandbox` or `static-token` for local/CI eval (FL-151).
 
 ## Guarantees (target)
 
