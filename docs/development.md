@@ -43,7 +43,8 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-120 | CLI module | `feature/FL-120-cli` | done |
 | FL-130 | Fraud module (optional) | `feature/FL-130-fraud-module` | done |
 | FL-140 | CI/CD + Docker Hub | `feature/FL-140-cicd-docker` | done |
-| FL-150 | Observability | `feature/FL-150-observability` | done (pending merge) |
+| FL-150 | Observability | `feature/FL-150-observability` | done |
+| FL-151 | Runnable security modes (eval / CI / prod) | `feature/FL-151-security-modes` | in progress |
 | FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | pending |
 | FL-170 | Hardening | `feature/FL-170-hardening` | pending |
 | FL-180 | Post-v1 official multi-lang SDKs (separate repos) | `feature/FL-180-official-sdks` | pending |
@@ -58,7 +59,7 @@ PRs are human-owned (agents do not open them unless asked).
 
 ## Maven commands
 
-The repo is a multi-module reactor (`finledger` server + `finledger-cli`).
+The repo is a multi-module reactor (`finledger` server + `finledger-cli` + `finledger-security-policy`).
 
 ```bash
 ./mvnw test                         # all modules: unit + ArchUnit + smoke
