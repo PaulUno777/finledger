@@ -52,7 +52,7 @@ infrastructure implements ports (JPA, outbox, FX, security, …)
 git clone https://github.com/PaulUno777/finledger.git && cd finledger
 cp finledger.env.example .env
 docker compose --profile sandbox up -d --build
-# Or: java -jar finledger-cli/target/finledger-cli-*-shaded.jar up --profile sandbox --build
+# Or: ./bin/finledger-cli up --profile sandbox --build
 # Read config/sandbox-ready.txt (or container logs) for copy-paste curls
 ```
 
@@ -89,16 +89,19 @@ Provisioning / ops CLI (separate module — [ADR-010](docs/adr/ADR-010-cli-http-
 [ADR-015](docs/adr/ADR-015-operational-model.md)):
 
 ```bash
-# Ops (local Compose)
-./mvnw -pl finledger-cli package -DskipTests
-java -jar finledger-cli/target/finledger-cli-0.0.1-SNAPSHOT.jar doctor
-java -jar finledger-cli/target/finledger-cli-0.0.1-SNAPSHOT.jar up --profile sandbox --build
+# Launcher (builds jar on first use if needed). No args → interactive REPL.
+./bin/finledger-cli                 # finledger>
+./bin/finledger-cli doctor
+./bin/finledger-cli up --profile sandbox --build
 
 # API provisioning — sandbox needs no token; static-token uses the dumped secret as --token
 export FINLEDGER_TOKEN=<jwt-or-static-token>
-./mvnw -pl finledger-cli exec:java -- tenant create --name Acme --type STANDALONE
-./mvnw -pl finledger-cli exec:java -- config init --mode disabled
+./bin/finledger-cli tenant create --name Acme --type STANDALONE
+./bin/finledger-cli config init --mode disabled
 ```
+
+Production: place `bin/finledger-cli` (or `finledger-cli.cmd`) next to `finledger-cli.jar`,
+or set `FINLEDGER_CLI_JAR`, and put the script on `PATH`.
 
 ## Configuration
 

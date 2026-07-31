@@ -78,20 +78,24 @@ The repo is a multi-module reactor (`finledger` server + `finledger-cli` + `finl
 ./mvnw verify                       # broader verification as profiles grow
 ```
 
-### CLI (FL-120)
+### CLI (FL-120 / FL-152)
 
 ```bash
 export FINLEDGER_BASE_URL=http://localhost:8080   # optional; this is the default
 export FINLEDGER_TOKEN=<jwt-with-ledger:admin-or-write>
 
-./mvnw -pl finledger-cli exec:java -- \
-  tenant create --name Acme --type STANDALONE
-
-# or after package:
-java -jar finledger-cli/target/finledger-cli-0.0.1-SNAPSHOT.jar shell
+# Preferred launcher (auto-packages the shaded jar when missing). No args → REPL.
+./bin/finledger-cli
+./bin/finledger-cli doctor
+./bin/finledger-cli tenant create --name Acme --type STANDALONE
 ```
 
-Commands: `tenant create`, `account create`, `fx config`, `split-rules put`, `shell`.
+Windows: `bin\finledger-cli.cmd`. Prod: colocate `finledger-cli.jar` with the script or set
+`FINLEDGER_CLI_JAR` (the Maven module directory is also named `finledger-cli/`, so the
+launcher lives under `bin/`).
+
+Commands: `tenant create`, `account create`, `fx config`, `split-rules put`, `shell`,
+plus ops (`doctor`, `status`, `up`, `down`, `restart`, `logs`) and `config`.
 
 Test tags (target convention):
 

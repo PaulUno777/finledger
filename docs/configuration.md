@@ -20,7 +20,7 @@ no interactive wizard at boot (wizards block health checks and orchestrated depl
 git clone <repo> && cd finledger
 cp finledger.env.example .env
 docker compose --profile sandbox up -d --build
-# Or: finledger-cli up --profile sandbox --build
+# Or: ./bin/finledger-cli up --profile sandbox --build
 # copy-paste curls from config/sandbox-ready.txt or app logs
 
 # Or OIDC-enforced local run:
@@ -51,16 +51,19 @@ profiles include `prod`.
 CLI (local YAML only — restart app after changes):
 
 ```bash
-./mvnw -pl finledger-cli exec:java -- config init --mode disabled
-./mvnw -pl finledger-cli exec:java -- config set security.mode static-token
-./mvnw -pl finledger-cli exec:java -- config validate
-./mvnw -pl finledger-cli exec:java -- restart   # Compose restart; volumes keep data
+./bin/finledger-cli config init --mode disabled
+./bin/finledger-cli config set security.mode static-token
+./bin/finledger-cli config validate
+./bin/finledger-cli restart   # Compose restart; volumes keep data
 ```
 
 ### Ops CLI (FL-152 / ADR-015)
 
 Local Compose helpers (no Spring; shells out to `docker compose`). Run from the repo root
 or pass `--project-dir`. Template: `finledger.env.example` → `.env` (gitignored).
+
+Launcher: `./bin/finledger-cli` (POSIX) / `bin\finledger-cli.cmd` (Windows). No args opens the
+interactive REPL. Prod: colocate `finledger-cli.jar` with the script, or set `FINLEDGER_CLI_JAR`.
 
 | Command | Purpose |
 |---------|---------|

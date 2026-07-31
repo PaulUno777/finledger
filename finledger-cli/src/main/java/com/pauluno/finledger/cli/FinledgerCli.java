@@ -43,7 +43,9 @@ public class FinledgerCli implements Runnable {
     public GlobalOptions globals = new GlobalOptions();
 
     public static void main(String[] args) {
-        int exit = new CommandLine(new FinledgerCli()).execute(args);
+        // No args → interactive REPL (launcher + java -jar both enter CLI mode).
+        String[] effective = (args == null || args.length == 0) ? new String[] {"shell"} : args;
+        int exit = new CommandLine(new FinledgerCli()).execute(effective);
         System.exit(exit);
     }
 
