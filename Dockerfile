@@ -48,4 +48,4 @@ VOLUME ["/workspace/config"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
 	CMD curl -fsS http://127.0.0.1:8081/actuator/health || exit 1
 
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/finledger-0.0.1-SNAPSHOT.jar"]
