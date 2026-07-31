@@ -12,9 +12,10 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 /**
  * Builds a {@link JwtDecoder} from issuer-uri or jwk-set-uri, always wrapped with the
- * RS256/ES256 algorithm allowlist.
+ * RS256/ES256 algorithm allowlist. Only active in {@code enforced} mode (FL-151).
  */
 @Configuration
+@ConditionalOnProperty(prefix = "finledger.security", name = "mode", havingValue = "enforced", matchIfMissing = true)
 public class JwtDecoderConfig {
 
     @Bean
