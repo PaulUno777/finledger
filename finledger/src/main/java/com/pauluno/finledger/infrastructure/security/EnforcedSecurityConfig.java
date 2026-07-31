@@ -22,7 +22,7 @@ public class EnforcedSecurityConfig {
 
     @Bean
     SecurityFilterChain enforcedSecurityFilterChain(HttpSecurity http) throws Exception {
-        http
+        return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -48,7 +48,7 @@ public class EnforcedSecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .addFilterAfter(
                         new TenantClaimAuthorizationFilter(TenantClaimAuthorizationFilter.TenantBindingMode.JWT_CLAIM),
-                        BearerTokenAuthenticationFilter.class);
-        return http.build();
+                        BearerTokenAuthenticationFilter.class)
+                .build();
     }
 }

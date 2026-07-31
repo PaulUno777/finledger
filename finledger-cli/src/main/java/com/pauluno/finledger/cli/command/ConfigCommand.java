@@ -20,15 +20,11 @@ import picocli.CommandLine.Parameters;
 /**
  * Local YAML config authoring only (FL-151) — never HTTP.
  */
-@Command(
-        name = "config",
-        description = "Author local FinLedger config (YAML only; no HTTP)",
-        subcommands = {
-                ConfigInitCommand.class,
-                ConfigSetCommand.class,
-                ConfigValidateCommand.class
-        }
-)
+@Command(name = "config", description = "Author local FinLedger config (YAML only; no HTTP)", subcommands = {
+        ConfigInitCommand.class,
+        ConfigSetCommand.class,
+        ConfigValidateCommand.class
+})
 public class ConfigCommand implements Runnable {
     @Override
     public void run() {
@@ -99,7 +95,7 @@ class ConfigSetCommand implements Callable<Integer> {
                 yield upsertIndented(content, "mode", mode.configValue(), 4);
             }
             case "security.static-token", "finledger.security.static-token", "static-token" ->
-                    upsertIndented(content, "static-token", value, 4);
+                upsertIndented(content, "static-token", value, 4);
             case "env", "finledger.env" -> upsertIndented(content, "env", value, 2);
             default -> throw new IllegalArgumentException(
                     "Unsupported key '" + key + "' (use security.mode|security.static-token|env)");
@@ -173,7 +169,8 @@ class ConfigValidateCommand implements Callable<Integer> {
         System.out.println("OK: mode=" + mode.configValue() + " env=" + env
                 + (profiles.isBlank() ? "" : " profiles=" + profiles));
         if (mode == SecurityMode.STATIC_TOKEN && (staticToken == null || staticToken.isBlank())) {
-            System.out.println("WARN: static-token empty in file — set FINLEDGER_STATIC_TOKEN (or config set security.static-token …)");
+            System.out.println(
+                    "WARN: static-token empty in file — set FINLEDGER_STATIC_TOKEN (or config set security.static-token …)");
         }
         return 0;
     }

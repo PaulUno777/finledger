@@ -6,6 +6,7 @@
 		<groupId>com.pauluno</groupId>
 		<artifactId>finledger-parent</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
 	<artifactId>finledger</artifactId>
 	<name>FinLedger</name>
@@ -14,7 +15,6 @@
 		<dependency>
 			<groupId>com.pauluno</groupId>
 			<artifactId>finledger-security-policy</artifactId>
-			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>

@@ -8,6 +8,7 @@
 		<groupId>com.pauluno</groupId>
 		<artifactId>finledger-parent</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<artifactId>finledger-security-policy</artifactId>
