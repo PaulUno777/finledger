@@ -50,7 +50,9 @@ infrastructure implements ports (JPA, outbox, FX, security, …)
 
 ```bash
 git clone https://github.com/PaulUno777/finledger.git && cd finledger
+cp finledger.env.example .env
 docker compose --profile sandbox up -d --build
+# Or: java -jar finledger-cli/target/finledger-cli-*-shaded.jar up --profile sandbox --build
 # Read config/sandbox-ready.txt (or container logs) for copy-paste curls
 ```
 
@@ -83,10 +85,16 @@ docker compose --profile with-app --profile observability up -d --build
 # Prometheus :9090 · Grafana :3000 (admin/admin) · /actuator/prometheus on :8081
 ```
 
-Provisioning CLI (separate module — see [ADR-010](docs/adr/ADR-010-cli-http-client-module.md)):
+Provisioning / ops CLI (separate module — [ADR-010](docs/adr/ADR-010-cli-http-client-module.md),
+[ADR-015](docs/adr/ADR-015-operational-model.md)):
 
 ```bash
-# Sandbox mode needs no token; static-token uses the dumped secret as --token
+# Ops (local Compose)
+./mvnw -pl finledger-cli package -DskipTests
+java -jar finledger-cli/target/finledger-cli-0.0.1-SNAPSHOT.jar doctor
+java -jar finledger-cli/target/finledger-cli-0.0.1-SNAPSHOT.jar up --profile sandbox --build
+
+# API provisioning — sandbox needs no token; static-token uses the dumped secret as --token
 export FINLEDGER_TOKEN=<jwt-or-static-token>
 ./mvnw -pl finledger-cli exec:java -- tenant create --name Acme --type STANDALONE
 ./mvnw -pl finledger-cli exec:java -- config init --mode disabled

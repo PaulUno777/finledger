@@ -44,8 +44,8 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-130 | Fraud module (optional) | `feature/FL-130-fraud-module` | done |
 | FL-140 | CI/CD + Docker Hub | `feature/FL-140-cicd-docker` | done |
 | FL-150 | Observability | `feature/FL-150-observability` | done |
-| FL-151 | Runnable security modes (eval / CI / prod) | `feature/FL-151-security-modes` | in progress |
-| FL-152 | Ops CLI + `finledger.env.example` (Compose wrappers, doctor, restart hints) | `feature/FL-152-ops-cli-env-example` | pending |
+| FL-151 | Runnable security modes (eval / CI / prod) | `feature/FL-151-security-modes` | done |
+| FL-152 | Ops CLI + `finledger.env.example` (Compose wrappers, doctor, restart hints) | `feature/FL-152-ops-cli-env-example` | in progress |
 | FL-153 | API CLI UX (tenant header, health/ready, dry-run / confirm) | `feature/FL-153-api-cli-ux` | pending |
 | FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | pending |
 | FL-170 | Hardening | `feature/FL-170-hardening` | pending |

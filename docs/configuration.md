@@ -16,10 +16,11 @@ no interactive wizard at boot (wizards block health checks and orchestrated depl
 ## Local development
 
 ```bash
-# Fastest eval path (Blnk-style — ADR-015 / FL-151)
+# Fastest eval path (Blnk-style — ADR-015 / FL-152)
 git clone <repo> && cd finledger
-# cp finledger.env.example .env   # FL-152; until then see env table below
+cp finledger.env.example .env
 docker compose --profile sandbox up -d --build
+# Or: finledger-cli up --profile sandbox --build
 # copy-paste curls from config/sandbox-ready.txt or app logs
 
 # Or OIDC-enforced local run:
@@ -47,12 +48,28 @@ Those credentials are **dev-only**.
 **Interlock:** boot fails if mode ≠ `enforced` when `FINLEDGER_ENV=production` or
 profiles include `prod`.
 
-CLI (local YAML only):
+CLI (local YAML only — restart app after changes):
 
 ```bash
 ./mvnw -pl finledger-cli exec:java -- config init --mode disabled
+./mvnw -pl finledger-cli exec:java -- config set security.mode static-token
 ./mvnw -pl finledger-cli exec:java -- config validate
+./mvnw -pl finledger-cli exec:java -- restart   # Compose restart; volumes keep data
 ```
+
+### Ops CLI (FL-152 / ADR-015)
+
+Local Compose helpers (no Spring; shells out to `docker compose`). Run from the repo root
+or pass `--project-dir`. Template: `finledger.env.example` → `.env` (gitignored).
+
+| Command | Purpose |
+|---------|---------|
+| `doctor` | Docker / compose file / `.env` / security-mode checks + optional health probe |
+| `status` | `compose ps` + `GET …/actuator/health` |
+| `up [--profile sandbox\|with-app] [--build]` | `docker compose up -d` |
+| `down` | `docker compose down` (no `-v` — preserves Postgres data) |
+| `restart [--service app-sandbox\|app]` | Restart app container |
+| `logs [-f] [--service …]` | Compose logs |
 
 ### AuthN / AuthZ (OIDC — `enforced`)
 

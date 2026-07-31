@@ -24,8 +24,9 @@ This guide is written for a CTO or platform lead evaluating FinLedger as a
 ```bash
 git clone https://github.com/PaulUno777/finledger.git
 cd finledger
-cp finledger.env.example .env   # when FL-152 lands; until then use docs/configuration.md
+cp finledger.env.example .env
 docker compose --profile sandbox up -d --build
+# or: finledger-cli up --profile sandbox --build / doctor / status (FL-152)
 # read config/sandbox-ready.txt — post a journal without an IdP
 ```
 
