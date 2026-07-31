@@ -45,9 +45,17 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-140 | CI/CD + Docker Hub | `feature/FL-140-cicd-docker` | done |
 | FL-150 | Observability | `feature/FL-150-observability` | done |
 | FL-151 | Runnable security modes (eval / CI / prod) | `feature/FL-151-security-modes` | in progress |
+| FL-152 | Ops CLI + `finledger.env.example` (Compose wrappers, doctor, restart hints) | `feature/FL-152-ops-cli-env-example` | pending |
+| FL-153 | API CLI UX (tenant header, health/ready, dry-run / confirm) | `feature/FL-153-api-cli-ux` | pending |
 | FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | pending |
 | FL-170 | Hardening | `feature/FL-170-hardening` | pending |
 | FL-180 | Post-v1 official multi-lang SDKs (separate repos) | `feature/FL-180-official-sdks` | pending |
+| FL-190 | Finalize CTO integration runbook | `feature/FL-190-cto-integration-guide` | pending |
+
+Work proceeds **one ticket at a time** with human PR gates. After each merge, continue
+manual/E2E validation for that ticket. **FL-190** (end of track) delivers the
+copy-paste [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md) instructions as if a
+fintech CTO were integrating FinLedger into their stack. Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 
 ## Phase gate checklist
 

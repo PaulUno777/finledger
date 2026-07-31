@@ -46,12 +46,16 @@ infrastructure implements ports (JPA, outbox, FX, security, …)
 
 ## Quick start
 
-**Fastest eval (no IdP):**
+**Fastest eval (Blnk-style — no IdP):**
 
 ```bash
+git clone https://github.com/PaulUno777/finledger.git && cd finledger
 docker compose --profile sandbox up -d --build
 # Read config/sandbox-ready.txt (or container logs) for copy-paste curls
 ```
+
+Production / CTO checklist outline: [docs/INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md)
+(finalized after remaining roadmap validation). Ops model: [ADR-015](docs/adr/ADR-015-operational-model.md).
 
 OIDC-enforced local run:
 

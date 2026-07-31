@@ -40,3 +40,6 @@ would couple operator tooling to the server classpath and complicate packaging.
 - The CLI’s private `ApiClient` is intentional until FL-160 ships an in-repo
   `/sdk-reference/` client (and FL-180 official multi-lang SDKs in **separate
   repos**); do not extract a shared SDK module in this phase.
+- **Amended by [ADR-015](ADR-015-operational-model.md):** CLI gains a local **ops**
+  surface (Compose wrappers, doctor, config validate) while keeping HTTP **api**
+  commands as the remote admin path; no embedded server lifecycle.

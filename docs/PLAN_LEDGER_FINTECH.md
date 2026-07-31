@@ -416,9 +416,11 @@ Détail complet des règles de test (jqwik, PIT, Testcontainers, tests de concur
 
 ## 4. Modèle de données (double-entry, diagramme ER)
 
-## 5. Démarrage rapide — Docker (voir §18)
+## 5. Démarrage rapide — Docker (voir §18) — clone + `compose --profile sandbox`
 
-## 6. Configuration (couches : image → fichier externe → env vars)
+## 6. Configuration (couches : image → fichier externe → env vars + finledger.env.example)
+
+## 6b. Intégration CTO ([INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md))
 
 ## 7. API (OpenAPI/Swagger, exemples curl avec Idempotency-Key)
 
@@ -450,18 +452,25 @@ Un client de référence unique (Java ou TypeScript selon l'écosystème visé) 
 
 ---
 
-## 16. CLI de provisioning
+## 16. CLI de provisioning & opérations
 
-Module Maven séparé (Picocli), client de l'API d'admin plutôt que fonctionnalité embarquée du runtime :
+Module Maven séparé (`finledger-cli`, Picocli + JLine, **sans Spring**), jar shaded
+distribué à côté de l'image serveur. Deux surfaces dans le même binaire
+([ADR-015](adr/ADR-015-operational-model.md)) :
 
 ```
-finledger-cli (Picocli, module séparé)
-        │  appelle l'API REST d'admin
-        ▼
-finledger-core ── expose /admin/tenant-config, /admin/fx-config, /admin/split-rules, etc.
+finledger-cli
+ ├─ ops  (local / SSH près de Compose) : config init|set|validate, status, doctor,
+ │         up|down|restart|logs (wrappers docker compose) — cycle de vie = Compose/K8s
+ └─ api  (HTTP vers le serveur) : tenants, accounts, FX, splits, health/ready
+           → POST/GET /api/v1/... (pas de surface /admin dupliquée en v1 — ADR-010)
 ```
 
-JLine 3 pour l'ergonomie interactive. Une interface web d'admin pourra être ajoutée plus tard sans dupliquer la logique — la CLI reste optionnelle.
+Ergonomie : bannière de contexte (mode `enforced|static-token|disabled`, env, profils),
+validation avec messages actionnables, confirmation / `--dry-run` sur les mutateurs,
+avertissement « restart le service ; volumes Postgres conservent les données » après
+`config set`. Swagger/OpenAPI reste pour le DX local et la doc API ; désactivé ou
+restreint en `prod`. Une UI web admin pourra s'appuyer plus tard sur la même API.
 
 ---
 
@@ -491,9 +500,10 @@ Ni "tout en variables d'environnement" (illisible à grande échelle) ni "wizard
 
 1. **Défauts embarqués dans l'image** — `application.yml` avec des valeurs sûres permettant un `docker run` minimal (associé à un `docker-compose.yml` de quickstart qui fournit Postgres).
 2. **Fichier de config externe optionnel** — l'image définit `SPRING_CONFIG_ADDITIONAL_LOCATION=optional:file:/workspace/config/` ; une entreprise monte simplement son propre `application.yml` sur ce volume (`-v ./my-config.yml:/workspace/config/application.yml`). Le préfixe `optional:` évite tout échec si le fichier est absent.
-3. **Variables d'environnement (relaxed binding)** — pour les orchestrateurs qui préfèrent l'injection d'env vars (ConfigMap/Secret Kubernetes, task defs ECS) à un fichier monté ; toute clé YAML est overridable via son équivalent `SCREAMING_SNAKE_CASE`.
+3. **Variables d'environnement (relaxed binding)** — pour les orchestrateurs qui préfèrent l'injection d'env vars (ConfigMap/Secret Kubernetes, task defs ECS) à un fichier monté ; toute clé YAML est overridable via son équivalent `SCREAMING_SNAKE_CASE`. Fichier de référence **`finledger.env.example`** à la racine : toutes les options documentées avec défauts et descriptions ; `cp finledger.env.example .env` pour démarrer.
 4. **Secrets jamais dans le fichier de config** — toujours via le port `SecretsProvider` (§2.3, §11).
-5. **Premier lancement sans tenant configuré** : le service démarre normalement (jamais de blocage), log un message explicite pointant vers la CLI (§16) ou `/admin/tenant-config` pour créer le premier tenant — pas de wizard qui empêcherait le conteneur de passer `healthy`.
+5. **Premier lancement sans tenant configuré** : le service démarre normalement (jamais de blocage), log un message explicite pointant vers la CLI (§16) ou `POST /api/v1/tenants` pour créer le premier tenant — pas de wizard qui empêcherait le conteneur de passer `healthy`.
+6. **Modes de sécurité (FL-151 / ADR-014)** : `enforced` (défaut prod), `static-token` (CI), `disabled` (sandbox eval) — interlock code si mode ≠ enforced en production.
 
 ### 18.2 Pipeline GitHub Actions
 
@@ -502,9 +512,22 @@ Ni "tout en variables d'environnement" (illisible à grande échelle) ni "wizard
 
 Fichiers de référence : `.github/workflows/ci.yml`, `.github/workflows/release-docker.yml`, `Dockerfile`, `.dockerignore` (livrés à la racine du repo).
 
-### 18.3 Image Docker
+### 18.3 Image Docker & démarrage type Blnk
 
-Build multi-stage (JDK pour build, JRE Alpine minimal pour runtime), jar en couches Spring Boot (`-Djarmode=tools ... extract --layers`) pour un meilleur cache de layers Docker, utilisateur non-root, healthcheck sur `/actuator/health`, volume `/workspace/config` pour le point 2 ci-dessus.
+Build multi-stage (JDK pour build, JRE Alpine minimal pour runtime), jar en couches Spring Boot (`-Djarmode=tools ... extract --layers`) pour un meilleur cache de layers Docker, utilisateur non-root, healthcheck sur `/actuator/health` (port management `8081`), volume `/workspace/config` pour le point 2 ci-dessus. Entrypoint : `java -jar` (layout Boot 4).
+
+**Chemin d'évaluation recommandé (inspiré Blnk) :**
+
+```bash
+git clone <repo> && cd finledger
+cp finledger.env.example .env
+docker compose --profile sandbox up -d --build
+# credentials / curls : config/sandbox-ready.txt
+```
+
+**Production :** image Hub + `with-app` (ou K8s) avec `FINLEDGER_SECURITY_MODE=enforced` et IdP OIDC. Le fat JAR serveur reste un escape hatch hors conteneur. Redémarrer l'app (`compose restart`) sans perdre les données = volumes Postgres/Redis nommés.
+
+Voir [ADR-012](adr/ADR-012-docker-distribution.md), [ADR-015](adr/ADR-015-operational-model.md).
 
 ---
 
@@ -525,9 +548,12 @@ Build multi-stage (JDK pour build, JRE Alpine minimal pour runtime), jar en couc
 13. Module Fraude (optionnel, §17).
 14. CI/CD (§18) — pipelines GitHub Actions, image Docker publiée.
 15. Observabilité — traces, dashboards.
+15b. Modes de sécurité runnable + sandbox Compose (FL-151 / ADR-014).
+15c. Modèle ops : `finledger.env.example`, CLI ops+api, doctor/status/restart hints (FL-152 / FL-153 / ADR-015).
 16. Contract tests vis-à-vis d'un "client fintech" fictif + client de référence non-officiel (`/sdk-reference/`, §15).
 17. Durcissement : chaos testing, tests de charge, revue de sécurité.
-18. **Post-v1 (conditionné à l'adoption)** : SDK multi-langues officiels ; éventuelle promotion d'un adapter gRPC au rang d'interface publique si un besoin réel le justifie.
+18. **Guide CTO / intégration production** — runbook final pour intégrer FinLedger dans une stack fintech existante ([INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md), FL-190), après validation pas-à-pas.
+19. **Post-v1 (conditionné à l'adoption)** : SDK multi-langues officiels ; éventuelle promotion d'un adapter gRPC au rang d'interface publique si un besoin réel le justifie.
 
 ---
 
@@ -555,7 +581,7 @@ Ce projet s'inspire de mécanismes précis d'outils existants, sans en adopter l
 | Hash-chained audit log                                                               | Log applicatif classique                                    | Détectabilité de falsification                                                                |
 | Taux figé dans le JournalEntry                                                       | Recalcul à la demande                                       | Reproductibilité historique                                                                   |
 | Spring Boot + Virtual Threads                                                        | Go                                                          | Charge I/O-bound, écosystème Spring déjà exploité                                             |
-| CLI en module séparé                                                                 | CLI embarquée dans le runtime                               | Découplage, réutilisable par une future UI web                                                |
+| CLI en module séparé (surfaces ops + api)                                                | CLI embarquée dans le runtime / supervisord custom          | Découplage, Compose/K8s gardent le cycle de vie ; CLI SSH-first (ADR-015)                      |
 | Module Fraude en bounded context optionnel                                           | Règles de fraude dans le domaine ledger                     | Cycle de vie différent, ne doit pas fragiliser le cœur comptable                              |
 | Split déclaratif structuré (YAML/JSON) + ports `SplitPlanResolver` / `FeeReversalPolicy` | Fee Engine comme nouveau domaine dans le cœur ; DSL scripté complet dès le v1 | KISS + non-présomption — le pricing reste extérieur ; le ledger enregistre un `SplitPlan` valide (§5.2, §5.3) |
 | Taxonomie frais granulaire (`FEE_PLATFORM_REVENUE`, `FEE_INTERCHANGE_COST`, …)           | Un seul compte `FEE_REVENUE`                                                | Conformité comptable / P&L auditable par transaction (§1.2)                                                   |
@@ -563,5 +589,6 @@ Ce projet s'inspire de mécanismes précis d'outils existants, sans en adopter l
 | Un seul client de référence non-garanti (`/sdk-reference/`)                              | 3 SDK officiels multi-langues dès le v1                                     | Charge disproportionnée pour un OSS naissant ; SDK multi-langues reportés post-v1 (§15, §19)                  |
 | Précisions sécurité diluées dans §10/§11 (JWT allowlist, TLS 1.3, `traceparent`)         | Chapitre "Integration & Security Layer" dédié (Gateway/Mesh/WAF/SIEM)       | La sécurité vient du modèle de menace, pas de la surface d'intégration ; hors non-présomption (§0.6, §11)    |
 | Types de solde comme agrégation de `settlementStatus`                                    | Nouveau concept de compte séparé pour "pending"/"held"                      | Réutilise l'unique flux append-only existant, zéro duplication de vérité                                      |
-| Config en couches (image → fichier optionnel → env vars) via conventions Spring Boot     | Système de config propriétaire ou wizard interactif au boot                 | Zéro réinvention, compatible orchestrateurs, jamais de blocage au démarrage                                   |
+| Config en couches (image → fichier optionnel → env vars) + `finledger.env.example`       | Système de config propriétaire ou wizard interactif au boot                 | Zéro réinvention, compatible orchestrateurs, jamais de blocage au démarrage                                   |
+| Install eval type Blnk (`compose --profile sandbox`) + image Hub pour la prod            | Wizard JVM ou CLI qui spawn le serveur comme chemin principal               | DX OSS rapide ; prod = image + OIDC enforced (ADR-012, ADR-015)                                               |
 | Aucun broker/IAM/secrets/rail/gateway/mesh imposé par défaut                             | Choix figé d'un fournisseur ou topologie en dur                             | Le projet est un socle open source pour startups qui ont déjà ou choisiront leur propre stack                 |

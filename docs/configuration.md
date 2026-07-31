@@ -16,7 +16,9 @@ no interactive wizard at boot (wizards block health checks and orchestrated depl
 ## Local development
 
 ```bash
-# Fastest eval path (no IdP) — see ADR-014
+# Fastest eval path (Blnk-style — ADR-015 / FL-151)
+git clone <repo> && cd finledger
+# cp finledger.env.example .env   # FL-152; until then see env table below
 docker compose --profile sandbox up -d --build
 # copy-paste curls from config/sandbox-ready.txt or app logs
 
@@ -25,6 +27,9 @@ docker compose up -d
 export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
 ./mvnw -pl finledger spring-boot:run
 ```
+
+CTO / production integration outline: [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md)
+(finalized in FL-190). Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 
 `application-local.yml` / `application-test.yml` point at Compose Postgres/Redis.
 Flyway migrates as superuser `finledger`; the app connects as non-superuser
