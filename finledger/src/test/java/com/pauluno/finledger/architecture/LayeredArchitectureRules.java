@@ -16,15 +16,18 @@ public class LayeredArchitectureRules {
                         .layer("Application").definedBy("..application..")
                         .layer("Presentation").definedBy("..presentation..")
                         .layer("Infrastructure").definedBy("..infrastructure..")
+                        .layer("SecurityPolicy").definedBy("..security.policy..")
 
                         // Domain should be independent of everything
                         .whereLayer("Domain").mayNotAccessAnyLayer()
+                        // Shared security-policy module is pure JDK
+                        .whereLayer("SecurityPolicy").mayNotAccessAnyLayer()
                         // Application should only access the Domain
                         .whereLayer("Application").mayOnlyAccessLayers("Domain")
                         // Presentation should only access the Application
                         .whereLayer("Presentation").mayOnlyAccessLayers("Application")
-                        // Infrastructure should only access the Domain and the Application
-                        .whereLayer("Infrastructure").mayOnlyAccessLayers("Domain", "Application");
+                        // Infrastructure may use Domain, Application, and the shared policy module
+                        .whereLayer("Infrastructure").mayOnlyAccessLayers("Domain", "Application", "SecurityPolicy");
 
         @ArchTest
         public static final ArchRule shared_must_be_completely_independent = noClasses()

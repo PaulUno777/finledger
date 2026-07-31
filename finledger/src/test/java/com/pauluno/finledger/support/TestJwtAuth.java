@@ -7,7 +7,7 @@ import java.util.UUID;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
-import com.pauluno.finledger.infrastructure.security.SecurityConfig;
+import com.pauluno.finledger.infrastructure.security.LedgerAuthorities;
 import com.pauluno.finledger.infrastructure.security.TenantClaimAuthorizationFilter;
 
 /**
@@ -23,7 +23,7 @@ public final class TestJwtAuth {
                 .jwt(builder -> builder
                         .subject("admin")
                         .claim("scope", "ledger:admin"))
-                .authorities(new SimpleGrantedAuthority(SecurityConfig.SCOPE_LEDGER_ADMIN));
+                .authorities(new SimpleGrantedAuthority(LedgerAuthorities.SCOPE_LEDGER_ADMIN));
     }
 
     public static RequestPostProcessor tenantJwt(UUID tenantId, String... scopes) {

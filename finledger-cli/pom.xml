@@ -7,6 +7,7 @@
 		<groupId>com.pauluno</groupId>
 		<artifactId>finledger-parent</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
 
 	<artifactId>finledger-cli</artifactId>
@@ -14,6 +15,10 @@
 	<description>HTTP client CLI for FinLedger provisioning (tenants, accounts, FX, split rules)</description>
 
 	<dependencies>
+		<dependency>
+			<groupId>com.pauluno</groupId>
+			<artifactId>finledger-security-policy</artifactId>
+		</dependency>
 		<!-- Picocli for command parsing — no Spring in this module -->
 		<dependency>
 			<groupId>info.picocli</groupId>

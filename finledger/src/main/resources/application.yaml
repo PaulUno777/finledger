@@ -46,5 +46,12 @@ logging:
     root: INFO
 
 finledger:
+  env: ${FINLEDGER_ENV:local}
+  security:
+    # enforced (default) | static-token | disabled — see ADR-014
+    mode: ${FINLEDGER_SECURITY_MODE:enforced}
   fraud:
     enabled: false
+  sandbox:
+    dump-path: config/sandbox-ready.txt
+    base-url: http://localhost:8080

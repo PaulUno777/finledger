@@ -1,5 +1,6 @@
 package com.pauluno.finledger.infrastructure.security;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -12,19 +13,16 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * OIDC resource server: JWT bearer auth, fine scopes, tenant claim binding (plan §11).
+ * OIDC resource server (FL-100) — active when {@code finledger.security.mode=enforced}.
  */
 @Configuration
 @EnableWebSecurity
-public class SecurityConfig {
-
-    public static final String SCOPE_LEDGER_READ = "SCOPE_ledger:read";
-    public static final String SCOPE_LEDGER_WRITE = "SCOPE_ledger:write";
-    public static final String SCOPE_LEDGER_ADMIN = "SCOPE_ledger:admin";
+@ConditionalOnProperty(prefix = "finledger.security", name = "mode", havingValue = "enforced", matchIfMissing = true)
+public class EnforcedSecurityConfig {
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
+    SecurityFilterChain enforcedSecurityFilterChain(HttpSecurity http) throws Exception {
+        return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -32,17 +30,25 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/prometheus").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants/*/rails/webhooks/settlement")
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/tenants").hasAuthority(SCOPE_LEDGER_ADMIN)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/tenants")
+                        .hasAuthority(LedgerAuthorities.SCOPE_LEDGER_ADMIN)
                         .requestMatchers(HttpMethod.GET, "/api/**")
-                        .hasAnyAuthority(SCOPE_LEDGER_READ, SCOPE_LEDGER_WRITE, SCOPE_LEDGER_ADMIN)
+                        .hasAnyAuthority(
+                                LedgerAuthorities.SCOPE_LEDGER_READ,
+                                LedgerAuthorities.SCOPE_LEDGER_WRITE,
+                                LedgerAuthorities.SCOPE_LEDGER_ADMIN)
                         .requestMatchers("/api/**")
-                        .hasAnyAuthority(SCOPE_LEDGER_WRITE, SCOPE_LEDGER_ADMIN)
+                        .hasAnyAuthority(
+                                LedgerAuthorities.SCOPE_LEDGER_WRITE,
+                                LedgerAuthorities.SCOPE_LEDGER_ADMIN)
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
-                .addFilterAfter(new TenantClaimAuthorizationFilter(), BearerTokenAuthenticationFilter.class);
-        return http.build();
+                .addFilterAfter(
+                        new TenantClaimAuthorizationFilter(TenantClaimAuthorizationFilter.TenantBindingMode.JWT_CLAIM),
+                        BearerTokenAuthenticationFilter.class)
+                .build();
     }
 }

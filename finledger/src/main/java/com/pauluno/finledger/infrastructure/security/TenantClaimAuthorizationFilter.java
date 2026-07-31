@@ -12,21 +12,43 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.pauluno.finledger.security.policy.SandboxIds;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Ensures JWT claim {@code tenant_id} matches the tenant UUID in the request path
- * for tenant-scoped APIs (plan §11).
+ * Ensures the caller is bound to the tenant UUID in the request path (plan §11 / FL-151).
+ * <ul>
+ *   <li>{@code enforced}: JWT claim {@code tenant_id}</li>
+ *   <li>{@code static-token}: header {@code X-FinLedger-Tenant-Id}</li>
+ *   <li>{@code disabled}: path tenant must equal the well-known sandbox tenant</li>
+ * </ul>
  */
 public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
 
     public static final String TENANT_ID_CLAIM = "tenant_id";
 
+    public enum TenantBindingMode {
+        JWT_CLAIM,
+        HEADER,
+        SANDBOX_ONLY
+    }
+
     private static final Pattern TENANT_SCOPED_PATH =
             Pattern.compile("^/api/v1/tenants/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(/|$)");
+
+    private final TenantBindingMode bindingMode;
+
+    public TenantClaimAuthorizationFilter() {
+        this(TenantBindingMode.JWT_CLAIM);
+    }
+
+    public TenantClaimAuthorizationFilter(TenantBindingMode bindingMode) {
+        this.bindingMode = bindingMode;
+    }
 
     @Override
     protected void doFilterInternal(
@@ -47,24 +69,39 @@ public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
         }
 
         String pathTenantId = matcher.group(1);
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (!(authentication instanceof JwtAuthenticationToken jwtAuth)) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        Jwt jwt = jwtAuth.getToken();
-        String claimTenantId = jwt.getClaimAsString(TENANT_ID_CLAIM);
-        if (claimTenantId == null || claimTenantId.isBlank() || !claimTenantId.equals(pathTenantId)) {
+        if (!tenantMatches(request, pathTenantId)) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write(
-                    "{\"code\":\"TENANT_CLAIM_MISMATCH\",\"message\":\"JWT tenant_id claim does not match path tenant\"}"
+                    "{\"code\":\"TENANT_CLAIM_MISMATCH\",\"message\":\"Caller tenant does not match path tenant\"}"
             );
             return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean tenantMatches(HttpServletRequest request, String pathTenantId) {
+        return switch (bindingMode) {
+            case JWT_CLAIM -> jwtClaimMatches(pathTenantId);
+            case HEADER -> headerMatches(request, pathTenantId);
+            case SANDBOX_ONLY -> SandboxIds.TENANT_ID.toString().equalsIgnoreCase(pathTenantId);
+        };
+    }
+
+    private static boolean jwtClaimMatches(String pathTenantId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (!(authentication instanceof JwtAuthenticationToken jwtAuth)) {
+            return true;
+        }
+        Jwt jwt = jwtAuth.getToken();
+        String claimTenantId = jwt.getClaimAsString(TENANT_ID_CLAIM);
+        return claimTenantId != null && !claimTenantId.isBlank() && claimTenantId.equals(pathTenantId);
+    }
+
+    private static boolean headerMatches(HttpServletRequest request, String pathTenantId) {
+        String header = request.getHeader(LedgerAuthorities.TENANT_HEADER);
+        return header != null && !header.isBlank() && header.trim().equalsIgnoreCase(pathTenantId);
     }
 
     private static boolean isCreateTenant(HttpServletRequest request, String path) {

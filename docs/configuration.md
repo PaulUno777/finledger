@@ -16,18 +16,45 @@ no interactive wizard at boot (wizards block health checks and orchestrated depl
 ## Local development
 
 ```bash
+# Fastest eval path (Blnk-style — ADR-015 / FL-151)
+git clone <repo> && cd finledger
+# cp finledger.env.example .env   # FL-152; until then see env table below
+docker compose --profile sandbox up -d --build
+# copy-paste curls from config/sandbox-ready.txt or app logs
+
+# Or OIDC-enforced local run:
 docker compose up -d
-# Required for FL-100 — point at any OIDC issuer (or JWKS URI):
 export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
 ./mvnw -pl finledger spring-boot:run
 ```
+
+CTO / production integration outline: [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md)
+(finalized in FL-190). Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 
 `application-local.yml` / `application-test.yml` point at Compose Postgres/Redis.
 Flyway migrates as superuser `finledger`; the app connects as non-superuser
 `finledger_app` / `finledger` so Postgres FORCE RLS is enforced (superusers bypass RLS).
 Those credentials are **dev-only**.
 
-### AuthN / AuthZ (OIDC)
+### Security modes (FL-151 / ADR-014)
+
+| Mode | Property | Use |
+|------|----------|-----|
+| `enforced` (default) | `finledger.security.mode=enforced` | Production / OIDC (ADR-008) |
+| `static-token` | `static-token` + `FINLEDGER_STATIC_TOKEN` | CI / early integration |
+| `disabled` | `disabled` | Local sandbox only |
+
+**Interlock:** boot fails if mode ≠ `enforced` when `FINLEDGER_ENV=production` or
+profiles include `prod`.
+
+CLI (local YAML only):
+
+```bash
+./mvnw -pl finledger-cli exec:java -- config init --mode disabled
+./mvnw -pl finledger-cli exec:java -- config validate
+```
+
+### AuthN / AuthZ (OIDC — `enforced`)
 
 | Item | Contract |
 |------|----------|
@@ -35,7 +62,7 @@ Those credentials are **dev-only**.
 | Scopes | `ledger:read`, `ledger:write`, `ledger:admin` |
 | Tenant binding | Claim `tenant_id` (UUID) must match `/api/v1/tenants/{tenantId}/…` |
 | Create tenant | `POST /api/v1/tenants` requires `ledger:admin` |
-| Public | `/actuator/health` only |
+| Public | `/actuator/health`, `/actuator/prometheus`; settlement webhooks |
 | TLS | Terminate TLS 1.3 at the reverse proxy / load balancer in front of the service |
 
 If Flyway reports a checksum mismatch after a migration file was edited, recreate
@@ -71,7 +98,10 @@ Local Compose:
 # Postgres + Redis only (default)
 docker compose up -d
 
-# Full stack (build image + app). Put OIDC issuer in `.env` first.
+# Sandbox eval (no OIDC) — dumps curls to ./config/sandbox-ready.txt
+docker compose --profile sandbox up -d --build
+
+# Full stack with OIDC enforced (build image + app). Put OIDC issuer in `.env` first.
 docker compose --profile with-app up -d --build
 
 # Optional Prometheus + Grafana (see deploy/observability/)
@@ -105,8 +135,11 @@ See [ADR-013](adr/ADR-013-observability.md).
 | `SPRING_DATA_REDIS_PORT` | Redis port |
 | `REDIS_HOST` / `REDIS_PORT` | Prod-profile aliases for Redis |
 | `SPRING_CONFIG_ADDITIONAL_LOCATION` | Optional extra config locations |
-| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (preferred) |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (preferred; `enforced` mode) |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | JWKS URI alternative to issuer |
+| `FINLEDGER_ENV` | `local` (default) or `production` — production forbids non-enforced modes |
+| `FINLEDGER_SECURITY_MODE` | `enforced` \| `static-token` \| `disabled` (ADR-014) |
+| `FINLEDGER_STATIC_TOKEN` | Shared Bearer when `mode=static-token` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional OTLP traces endpoint (maps to `management.opentelemetry.tracing.export.otlp.endpoint`) |
 | `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET` | HMAC secret for inbound rail settlement webhooks |
 | `FINLEDGER_BASE_URL` | CLI only — FinLedger API base URL (default `http://localhost:8080`) |

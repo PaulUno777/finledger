@@ -32,4 +32,11 @@ public class DomainRules {
             .orShould().dependOnClassesThat().resideInAnyPackage("..application..")
             .orShould().dependOnClassesThat().resideInAnyPackage("..infrastructure..")
             .as("Domain should not depend on any other layer");
+
+    @ArchTest
+    public static final ArchRule security_policy_should_be_framework_free = noClasses()
+            .that().resideInAPackage("..security.policy..")
+            .should().dependOnClassesThat()
+            .resideInAnyPackage("org.springframework..")
+            .as("finledger-security-policy must stay pure JDK (no Spring)");
 }

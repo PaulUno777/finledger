@@ -6,11 +6,16 @@
 		<groupId>com.pauluno</groupId>
 		<artifactId>finledger-parent</artifactId>
 		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
 	<artifactId>finledger</artifactId>
 	<name>FinLedger</name>
 	<description>Double-entry, multi-currency, multi-tenant ledger for payment aggregators</description>
 	<dependencies>
+		<dependency>
+			<groupId>com.pauluno</groupId>
+			<artifactId>finledger-security-policy</artifactId>
+		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>

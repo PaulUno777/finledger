@@ -1,6 +1,7 @@
 package com.pauluno.finledger.cli;
 
 import com.pauluno.finledger.cli.command.AccountCommand;
+import com.pauluno.finledger.cli.command.ConfigCommand;
 import com.pauluno.finledger.cli.command.FxCommand;
 import com.pauluno.finledger.cli.command.ShellCommand;
 import com.pauluno.finledger.cli.command.SplitRulesCommand;
@@ -20,7 +21,8 @@ import picocli.CommandLine.Mixin;
                 AccountCommand.class,
                 FxCommand.class,
                 SplitRulesCommand.class,
-                ShellCommand.class
+                ShellCommand.class,
+                ConfigCommand.class
         }
 )
 public class FinledgerCli implements Runnable {

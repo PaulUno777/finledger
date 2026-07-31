@@ -1,8 +1,9 @@
-# Local stack for FinLedger (Postgres + Redis; optional app / observability profiles).
+# Local stack for FinLedger (Postgres + Redis; optional app / observability / sandbox profiles).
 # App config layers: image/defaults → optional file mount → env vars.
 #
 #   docker compose up -d
-#   docker compose --profile with-app up -d --build   # needs OIDC in .env
+#   docker compose --profile sandbox up -d --build    # no OIDC; read config/sandbox-ready.txt
+#   docker compose --profile with-app up -d --build   # needs OIDC in .env (enforced)
 #   docker compose --profile with-app --profile observability up -d --build
 #
 # Dev credentials below are for local evaluation only — never reuse in production.
@@ -70,6 +71,8 @@ services:
         required: false
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      FINLEDGER_ENV: production
+      FINLEDGER_SECURITY_MODE: enforced
       DB_URL: jdbc:postgresql://postgres:5432/finledger
       DB_USERNAME: finledger_app
       DB_PASSWORD: finledger
@@ -79,6 +82,37 @@ services:
       REDIS_PORT: "6379"
     volumes:
       - ./config:/workspace/config:ro
+
+  # Start with: docker compose --profile sandbox up -d --build
+  # Never sets prod. Credentials dumped to ./config/sandbox-ready.txt (gitignored).
+  app-sandbox:
+    profiles: ["sandbox"]
+    build: .
+    image: finledger:local
+    container_name: finledger-app-sandbox
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: sandbox
+      FINLEDGER_ENV: local
+      FINLEDGER_SECURITY_MODE: disabled
+      FINLEDGER_SANDBOX_DUMP_PATH: /workspace/config/sandbox-ready.txt
+      FINLEDGER_SANDBOX_BASE_URL: http://localhost:8080
+      DB_URL: jdbc:postgresql://postgres:5432/finledger
+      DB_USERNAME: finledger_app
+      DB_PASSWORD: finledger
+      SPRING_FLYWAY_USER: finledger
+      SPRING_FLYWAY_PASSWORD: finledger
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    volumes:
+      - ./config:/workspace/config
 
   prometheus:
     profiles: ["observability"]
