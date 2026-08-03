@@ -24,8 +24,11 @@ This guide is written for a CTO or platform lead evaluating FinLedger as a
 ```bash
 git clone https://github.com/PaulUno777/finledger.git
 cd finledger
-cp finledger.env.example .env   # when FL-152 is merged; else see configuration.md
-docker compose --profile sandbox up -d --build
+cp finledger.env.example .env
+./bin/finledger-cli up --profile sandbox --build
+# or: docker compose --profile sandbox up -d --build
+./bin/finledger-cli doctor
+./bin/finledger-cli                 # interactive REPL
 # read config/sandbox-ready.txt — post a journal (today: ADR-014 sandbox;
 # target: short-lived JWT from in-box issuer — ADR-016 / FL-155)
 ```
@@ -89,7 +92,7 @@ Optional adapters: FX provider, rail PSP, Vault, Kafka outbox publisher, fraud r
 
 ## 7. Next steps after eval
 
-- Auth model land: FL-154 → FL-155 → FL-156 ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md))
+- Merge / validate ops CLI (FL-152), then auth land FL-155 → FL-156 ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md))
 - API CLI UX / silent refresh (FL-153, after auth)
 - Contract tests / `/sdk-reference/` patterns (FL-160)
 - Hardening / load / chaos (FL-170)

@@ -16,10 +16,11 @@ no interactive wizard at boot (wizards block health checks and orchestrated depl
 ## Local development
 
 ```bash
-# Fastest eval path (Blnk-style — ADR-015 / FL-151)
+# Fastest eval path (Blnk-style — ADR-015 / FL-152)
 git clone <repo> && cd finledger
-# cp finledger.env.example .env   # FL-152; until then see env table below
+cp finledger.env.example .env
 docker compose --profile sandbox up -d --build
+# Or: ./bin/finledger-cli up --profile sandbox --build
 # copy-paste curls from config/sandbox-ready.txt or app logs
 
 # Or OIDC-enforced local run:
@@ -62,12 +63,31 @@ remove eternal static-token Bearer). **Until then, runtime still follows ADR-014
 **Interlock:** boot fails if mode ≠ `enforced` when `FINLEDGER_ENV=production` or
 profiles include `prod`.
 
-CLI (local YAML only):
+CLI (local YAML only — restart app after changes):
 
 ```bash
-./mvnw -pl finledger-cli exec:java -- config init --mode disabled
-./mvnw -pl finledger-cli exec:java -- config validate
+./bin/finledger-cli config init --mode disabled
+./bin/finledger-cli config set security.mode static-token
+./bin/finledger-cli config validate
+./bin/finledger-cli restart   # Compose restart; volumes keep data
 ```
+
+### Ops CLI (FL-152 / ADR-015)
+
+Local Compose helpers (no Spring; shells out to `docker compose`). Run from the repo root
+or pass `--project-dir`. Template: `finledger.env.example` → `.env` (gitignored).
+
+Launcher: `./bin/finledger-cli` (POSIX) / `bin\finledger-cli.cmd` (Windows). No args opens the
+interactive REPL. Prod: colocate `finledger-cli.jar` with the script, or set `FINLEDGER_CLI_JAR`.
+
+| Command | Purpose |
+|---------|---------|
+| `doctor` | Docker / compose file / `.env` / security-mode checks + optional health probe |
+| `status` | `compose ps` + `GET …/actuator/health` |
+| `up [--profile sandbox\|with-app] [--build]` | `docker compose up -d` |
+| `down` | `docker compose down` (no `-v` — preserves Postgres data) |
+| `restart [--service app-sandbox\|app]` | Restart app container |
+| `logs [-f] [--service …]` | Compose logs |
 
 ### AuthN / AuthZ (JWT — always)
 
@@ -161,6 +181,8 @@ See [ADR-013](adr/ADR-013-observability.md).
 | `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET` | HMAC secret for inbound rail settlement webhooks |
 | `FINLEDGER_BASE_URL` | CLI only — FinLedger API base URL (default `http://localhost:8080`) |
 | `FINLEDGER_TOKEN` | CLI only — Bearer JWT for `/api/v1` (needs `ledger:admin` to create tenants) |
+| `FINLEDGER_MANAGEMENT_URL` | CLI only — actuator base (default `http://localhost:8081`) |
+| `FINLEDGER_CLI_JAR` | CLI launcher — absolute path to shaded jar (prod) |
 | `FINLEDGER_FRAUD_ENABLED` | Enable in-box rule-based risk check (`true` / default `false`) |
 | `SERVER_PORT` | HTTP port (default `8080`) |
 | `MANAGEMENT_SERVER_PORT` | Actuator port (image default `8081`) |

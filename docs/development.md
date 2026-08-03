@@ -46,7 +46,7 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-150 | Observability | `feature/FL-150-observability` | done |
 | FL-151 | Runnable security modes (eval / CI / prod) | `feature/FL-151-security-modes` | done |
 | FL-152 | Ops CLI + `finledger.env.example` (Compose wrappers, doctor, restart hints) | `feature/FL-152-ops-cli-env-example` | in progress |
-| FL-154 | ADR-016 + docs/policy aliases (`sandbox`/`normal`, issuer model) | `feature/FL-154-adr-016-runtime-profiles` | in progress (docs) |
+| FL-154 | ADR-016 + docs (`sandbox`/`normal`, issuer model) | `feature/FL-154-adr-016-runtime-profiles` | done (docs on develop) |
 | FL-155 | Sandbox ephemeral JWT issuer + richer seed + dump UX | `feature/FL-155-sandbox-jwt-issuer` | pending |
 | FL-156 | Internal issuer for normal/CI; remove eternal static-token Bearer | `feature/FL-156-internal-jwt-issuer` | pending |
 | FL-153 | API CLI UX (tenant header, health/ready, dry-run, silent refresh) | `feature/FL-153-api-cli-ux` | pending (after FL-156) |
@@ -61,9 +61,9 @@ copy-paste [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md) instructions as if a
 fintech CTO were integrating FinLedger into their stack. Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 Auth target: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 
-**Gate note:** FL-154 docs may land while FL-152 is still open (docs-only waive). Do **not**
-start FL-155/156 code until FL-152 is merged (or waived) and FL-154 docs are accepted.
-FL-153 waits for the new auth model (FL-156).
+**Gate note:** FL-154 docs are on `develop`. Finish merging FL-152 next. Do **not** start
+FL-155/156 code until FL-152 is merged (or waived). FL-153 waits for the new auth model
+(FL-156).
 
 ## Phase gate checklist
 
@@ -86,20 +86,24 @@ The repo is a multi-module reactor (`finledger` server + `finledger-cli` + `finl
 ./mvnw verify                       # broader verification as profiles grow
 ```
 
-### CLI (FL-120)
+### CLI (FL-120 / FL-152)
 
 ```bash
 export FINLEDGER_BASE_URL=http://localhost:8080   # optional; this is the default
 export FINLEDGER_TOKEN=<jwt-with-ledger:admin-or-write>
 
-./mvnw -pl finledger-cli exec:java -- \
-  tenant create --name Acme --type STANDALONE
-
-# or after package:
-java -jar finledger-cli/target/finledger-cli-0.0.1-SNAPSHOT.jar shell
+# Preferred launcher (auto-packages the shaded jar when missing). No args → REPL.
+./bin/finledger-cli
+./bin/finledger-cli doctor
+./bin/finledger-cli tenant create --name Acme --type STANDALONE
 ```
 
-Commands: `tenant create`, `account create`, `fx config`, `split-rules put`, `shell`.
+Windows: `bin\finledger-cli.cmd`. Prod: colocate `finledger-cli.jar` with the script or set
+`FINLEDGER_CLI_JAR` (the Maven module directory is also named `finledger-cli/`, so the
+launcher lives under `bin/`).
+
+Commands: `tenant create`, `account create`, `fx config`, `split-rules put`, `shell`,
+plus ops (`doctor`, `status`, `up`, `down`, `restart`, `logs`) and `config`.
 
 Test tags (target convention):
 

@@ -65,6 +65,7 @@ class ConfigInitCommand implements Callable<Integer> {
                 """.formatted(env, parsed.configValue());
         Files.writeString(out, yaml, StandardCharsets.UTF_8);
         System.out.println("Wrote " + out.toAbsolutePath());
+        ConfigRestartHints.printToStdout();
         return 0;
     }
 }
@@ -102,6 +103,7 @@ class ConfigSetCommand implements Callable<Integer> {
         };
         Files.writeString(file, updated, StandardCharsets.UTF_8);
         System.out.println("Updated " + file.toAbsolutePath());
+        ConfigRestartHints.printToStdout();
         return 0;
     }
 
@@ -172,6 +174,7 @@ class ConfigValidateCommand implements Callable<Integer> {
             System.out.println(
                     "WARN: static-token empty in file — set FINLEDGER_STATIC_TOKEN (or config set security.static-token …)");
         }
+        ConfigRestartHints.printToStdout();
         return 0;
     }
 
