@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Ops CLI + env template (FL-152): `finledger.env.example`, CLI `doctor`/`status`/`up`/`down`/`restart`/`logs` (Compose wrappers), config restart hints, `./bin/finledger-cli` launcher (REPL-first; auto-build in repo) ([ADR-015](docs/adr/ADR-015-operational-model.md))
+- Runtime profiles & JWT issuer model (FL-154 docs): ADR-016 — `sandbox`/`normal`, always-on JWT, issuer `external`|`internal`, no trust_edge; tickets FL-155/156; FL-153 after auth ([ADR-016](docs/adr/ADR-016-runtime-profiles-jwt-issuer.md))
 - Operational model (ADR-015): Compose-first eval (Blnk-style), dual-surface CLI (ops + api), CTO integration outline ([INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md), finalized FL-190)
 - Runnable security modes (FL-151): `enforced` / `static-token` / `disabled`, production interlock, sandbox Compose profile + credential dump, CLI `config init|set|validate`, shared `finledger-security-policy` module ([ADR-014](docs/adr/ADR-014-security-modes.md))
 - Observability (FL-150): Micrometer Tracing + OpenTelemetry, optional OTLP export, JSON logs with trace MDC, `LedgerMetrics`, Compose `observability` profile + Grafana dashboard ([ADR-013](docs/adr/ADR-013-observability.md))

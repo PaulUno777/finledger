@@ -43,6 +43,9 @@ temporarily open until this phase (`permitAll` + disabled resource server).
 - Trade-off: local runs require a real issuer/JWKS (or test JwtDecoder in tests).
 - **Amended by ADR-014:** eval/CI may use `static-token` or `disabled` modes;
   production remains `enforced` only (code interlock).
+- **Amended by [ADR-016](ADR-016-runtime-profiles-jwt-issuer.md):** verification
+  stays always-on JWT (this ADR’s allowlist + claims); issuer may be external
+  OIDC or an in-box short-lived mint — no auth-off / trust_edge.
 - Follow-up: sensitive-read audit; Bucket4j; webhook HMAC with rails (FL-110);
   optional Vault secrets adapter.
 
@@ -50,4 +53,5 @@ temporarily open until this phase (`permitAll` + disabled resource server).
 
 - `docs/PLAN_LEDGER_FINTECH.md` §11, §19 item 10
 - `EnforcedSecurityConfig`, `AlgorithmAllowlistingJwtDecoder`, `TenantClaimAuthorizationFilter`
-- [ADR-014](ADR-014-security-modes.md) — runnable security modes
+- [ADR-014](ADR-014-security-modes.md) — runnable security modes (legacy until FL-156)
+- [ADR-016](ADR-016-runtime-profiles-jwt-issuer.md) — profiles + issuer model

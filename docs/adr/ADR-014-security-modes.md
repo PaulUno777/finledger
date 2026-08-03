@@ -46,9 +46,15 @@ for a one-minute solo eval.
 - Trade-off: operators must never set `sandbox`/`disabled` alongside `prod`
   (the interlock aborts boot if they do).
 - Follow-up: FL-160 contracts; optional Vault for static token storage.
+- **Amended by [ADR-016](ADR-016-runtime-profiles-jwt-issuer.md):** target model is
+  profiles `sandbox`/`normal` + always-on JWT + issuer `external`|`internal`;
+  deprecate `disabled` / eternal `static-token` Bearer (compat aliases during
+  FL-154–FL-156). Until those tickets land, this ADR remains the **runtime**
+  contract.
 
 ## References
 
 - `docs/PLAN_LEDGER_FINTECH.md` §11
 - `SecurityModePolicy`, `SecurityModeGuard`, `EnforcedSecurityConfig`,
   `StaticTokenSecurityConfig`, `DisabledSecurityConfig`, `SandboxBootstrap`
+- [ADR-016](ADR-016-runtime-profiles-jwt-issuer.md) — target runtime profiles & issuer model
