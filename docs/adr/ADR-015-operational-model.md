@@ -55,8 +55,12 @@ hints, Docker Boot 4 entrypoint).
 - Trade-off: ops commands require Docker (or documented JAR+systemd escape hatch).
 - Follow-up tickets: FL-152 (ops CLI + env.example), FL-153 (api CLI tenant header /
   health / UX), FL-190 (finalize CTO guide).
+- **Amended by [ADR-016](ADR-016-runtime-profiles-jwt-issuer.md):** sandbox vs
+  normal profiles; always-on JWT (external or internal issuer); Hub image remains
+  canonical production; JAR escape hatch with weaker liability; FL-153 follows
+  FL-155/156 auth land.
 
 ## References
 
 - `docs/PLAN_LEDGER_FINTECH.md` §16, §18, §19
-- ADR-010, ADR-012, ADR-014
+- ADR-010, ADR-012, ADR-014, [ADR-016](ADR-016-runtime-profiles-jwt-issuer.md)

@@ -30,19 +30,34 @@ export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/rea
 
 CTO / production integration outline: [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md)
 (finalized in FL-190). Ops model: [ADR-015](adr/ADR-015-operational-model.md).
+Target auth model: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 
 `application-local.yml` / `application-test.yml` point at Compose Postgres/Redis.
 Flyway migrates as superuser `finledger`; the app connects as non-superuser
 `finledger_app` / `finledger` so Postgres FORCE RLS is enforced (superusers bypass RLS).
 Those credentials are **dev-only**.
 
-### Security modes (FL-151 / ADR-014)
+### Runtime profiles & JWT (ADR-016 — target)
+
+| Profile | Purpose | Issuer |
+|---------|---------|--------|
+| `sandbox` | Seeded eval / local / CI | In-box issuer; **ephemeral signing keys per boot** |
+| `normal` | Real deployments | External OIDC (default) **or** in-box issuer with rotatable secrets |
+
+**Invariants:** JWT verification always on (RS256/ES256, `exp`, ledger max TTL, `tenant_id` +
+scopes). No auth-off / `trust_edge`. Long-lived `client_secret` is for **minting only**, never
+the API Bearer. mTLS is optional **transport**, never a JWT substitute.
+
+Implementation: FL-154 (aliases/policy) → FL-155 (sandbox issuer) → FL-156 (internal issuer;
+remove eternal static-token Bearer). **Until then, runtime still follows ADR-014 below.**
+
+### Security modes (FL-151 / ADR-014 — current runtime)
 
 | Mode | Property | Use |
 |------|----------|-----|
-| `enforced` (default) | `finledger.security.mode=enforced` | Production / OIDC (ADR-008) |
-| `static-token` | `static-token` + `FINLEDGER_STATIC_TOKEN` | CI / early integration |
-| `disabled` | `disabled` | Local sandbox only |
+| `enforced` (default) | `finledger.security.mode=enforced` | Production / OIDC (ADR-008) → maps to `normal` + external |
+| `static-token` | `static-token` + `FINLEDGER_STATIC_TOKEN` | CI today → will become short-lived mint (FL-156) |
+| `disabled` | `disabled` | Sandbox eval today → **removed** after FL-155 (use sandbox JWTs) |
 
 **Interlock:** boot fails if mode ≠ `enforced` when `FINLEDGER_ENV=production` or
 profiles include `prod`.
@@ -54,16 +69,18 @@ CLI (local YAML only):
 ./mvnw -pl finledger-cli exec:java -- config validate
 ```
 
-### AuthN / AuthZ (OIDC — `enforced`)
+### AuthN / AuthZ (JWT — always)
 
 | Item | Contract |
 |------|----------|
 | Algorithms | JWT `alg` must be `RS256` or `ES256` |
+| Lifetime | `exp` required; ledger-enforced max TTL (ADR-016 / FL-154+) |
 | Scopes | `ledger:read`, `ledger:write`, `ledger:admin` |
 | Tenant binding | Claim `tenant_id` (UUID) must match `/api/v1/tenants/{tenantId}/…` |
 | Create tenant | `POST /api/v1/tenants` requires `ledger:admin` |
 | Public | `/actuator/health`, `/actuator/prometheus`; settlement webhooks |
 | TLS | Terminate TLS 1.3 at the reverse proxy / load balancer in front of the service |
+| mTLS | Additive at the edge/mesh — does not replace JWT |
 
 If Flyway reports a checksum mismatch after a migration file was edited, recreate
 the local volume: `docker compose down -v && docker compose up -d`.

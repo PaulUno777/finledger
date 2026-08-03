@@ -44,9 +44,12 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-130 | Fraud module (optional) | `feature/FL-130-fraud-module` | done |
 | FL-140 | CI/CD + Docker Hub | `feature/FL-140-cicd-docker` | done |
 | FL-150 | Observability | `feature/FL-150-observability` | done |
-| FL-151 | Runnable security modes (eval / CI / prod) | `feature/FL-151-security-modes` | in progress |
-| FL-152 | Ops CLI + `finledger.env.example` (Compose wrappers, doctor, restart hints) | `feature/FL-152-ops-cli-env-example` | pending |
-| FL-153 | API CLI UX (tenant header, health/ready, dry-run / confirm) | `feature/FL-153-api-cli-ux` | pending |
+| FL-151 | Runnable security modes (eval / CI / prod) | `feature/FL-151-security-modes` | done |
+| FL-152 | Ops CLI + `finledger.env.example` (Compose wrappers, doctor, restart hints) | `feature/FL-152-ops-cli-env-example` | in progress |
+| FL-154 | ADR-016 + docs/policy aliases (`sandbox`/`normal`, issuer model) | `feature/FL-154-adr-016-runtime-profiles` | in progress (docs) |
+| FL-155 | Sandbox ephemeral JWT issuer + richer seed + dump UX | `feature/FL-155-sandbox-jwt-issuer` | pending |
+| FL-156 | Internal issuer for normal/CI; remove eternal static-token Bearer | `feature/FL-156-internal-jwt-issuer` | pending |
+| FL-153 | API CLI UX (tenant header, health/ready, dry-run, silent refresh) | `feature/FL-153-api-cli-ux` | pending (after FL-156) |
 | FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | pending |
 | FL-170 | Hardening | `feature/FL-170-hardening` | pending |
 | FL-180 | Post-v1 official multi-lang SDKs (separate repos) | `feature/FL-180-official-sdks` | pending |
@@ -56,6 +59,11 @@ Work proceeds **one ticket at a time** with human PR gates. After each merge, co
 manual/E2E validation for that ticket. **FL-190** (end of track) delivers the
 copy-paste [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md) instructions as if a
 fintech CTO were integrating FinLedger into their stack. Ops model: [ADR-015](adr/ADR-015-operational-model.md).
+Auth target: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
+
+**Gate note:** FL-154 docs may land while FL-152 is still open (docs-only waive). Do **not**
+start FL-155/156 code until FL-152 is merged (or waived) and FL-154 docs are accepted.
+FL-153 waits for the new auth model (FL-156).
 
 ## Phase gate checklist
 
