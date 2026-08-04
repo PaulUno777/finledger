@@ -553,6 +553,7 @@ Voir [ADR-012](adr/ADR-012-docker-distribution.md), [ADR-015](adr/ADR-015-operat
 15b. Modes de sécurité runnable + sandbox Compose (FL-151 / ADR-014).
 15c. Modèle ops : `finledger.env.example`, CLI ops+api, doctor/status/restart hints (FL-152 / ADR-015).
 15d. Profils `sandbox`/`normal` + émetteur JWT interne/externe, toujours-on verify ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md), FL-154 → FL-155 → FL-156) ; puis UX API CLI (FL-153).
+15e. **Sandbox scénarios riches (FL-157)** — packs de seed sélectionnables (`simple` | `aggregator` | `remittance`), labels démo optionnels (ex. EcoPay / Send Tunnel), `FINLEDGER_SANDBOX_SCENARIO` + `./bin/finledger-cli sandbox init` (prompts / non-interactif). Conserver `SandboxIds` comme contrat UUID du pack `simple` (JWT + ITs). Pas de wizard interactif au boot Spring.
 16. Contract tests vis-à-vis d'un "client fintech" fictif + client de référence non-officiel (`/sdk-reference/`, §15).
 17. Durcissement : chaos testing, tests de charge, revue de sécurité.
 18. **Guide CTO / intégration production** — runbook final pour intégrer FinLedger dans une stack fintech existante ([INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md), FL-190), après validation pas-à-pas.

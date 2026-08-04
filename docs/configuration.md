@@ -31,7 +31,7 @@ export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/rea
 ```
 
 CTO / production integration outline: [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md)
-(finalized in FL-190). Ops model: [ADR-015](adr/ADR-015-operational-model.md).
+(developer-focused; K8s go-live finalized in FL-190). Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 Auth model: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 **Who issues tokens / claim contract / BFF:** [auth-integration.md](auth-integration.md).
 

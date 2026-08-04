@@ -1,118 +1,338 @@
-# Integrating FinLedger — guide for fintech CTOs
+# FinLedger — developer integration guide
 
-> **Status:** Outline living document. Finalize after step-by-step validation of
-> FL-151 → FL-170 (see [development.md](development.md)). Until then, treat
-> commands and env names as authoritative when they match
-> [configuration.md](configuration.md) and ADRs.
+Practical guide for engineering teams integrating FinLedger into a payments or
+banking stack. Commands and env names match [configuration.md](configuration.md)
+and [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 
-This guide is written for a CTO or platform lead evaluating FinLedger as a
-**self-hosted double-entry ledger** inside an existing payments / banking stack.
+| Audience | Start here |
+|----------|------------|
+| Backend / platform engineer | §§1–5 (quickstart → first API call → auth) |
+| DevOps / SRE | §§6–7 (config, deploy, ops) |
+| Security review | §5 + [auth-integration.md](auth-integration.md) |
+| Product / architecture | §8 + [PLAN_LEDGER_FINTECH.md](PLAN_LEDGER_FINTECH.md) |
 
-## 1. What you get / what you bring
+---
 
-| FinLedger provides | You provide |
-|--------------------|-------------|
-| Append-only double-entry journal, multi-tenant RLS, idempotency, outbox | Postgres |
-| REST `/api/v1` + OpenAPI | OIDC IdP **or** short-lived JWTs from FinLedger’s in-box issuer ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)) |
-| Optional fraud/rails/FX adapters behind ports | Your payment rails, secrets store, broker (optional) |
-| Compose sandbox for eval | Network, TLS termination, observability backend |
+## 1. What you are integrating
 
-**Non-presumption:** we do not hard-wire Kafka, Keycloak, Vault, or a PSP. See plan §2.3.
+FinLedger is a **self-hosted multi-tenant double-entry ledger**. You call its REST
+API; it owns journal integrity, idempotency, tenant isolation (Postgres RLS), and
+an append-only audit trail.
 
-## 2. Evaluation path (one sitting)
+| FinLedger owns | Your stack owns |
+|----------------|-----------------|
+| Journal, accounts, balances (projections) | Customer UX, KYC, card/PSP rails |
+| Idempotency + transactional outbox | Event consumers / brokers (optional adapters) |
+| JWT **verification** (always on) | JWT **issuance** in production (your IdP / BFF) |
+| Hash-chained `audit_log` | Log aggregation / SIEM |
+| Optional FX / splits / rails / fraud behind ports | Concrete vendors (non-presumption — plan §2.3) |
+
+**Canonical production artifact:** Docker Hub image `${DOCKERHUB_USERNAME}/finledger:<semver>`.
+The server fat JAR on GitHub Releases is an escape hatch with weaker liability.
+
+---
+
+## 2. Mental model (two knobs only)
+
+```text
+SPRING_PROFILES_ACTIVE = sandbox | normal
+finledger.security.issuer = internal | external
+```
+
+| Profile | When to use | Issuer default | Seeded data |
+|---------|-------------|----------------|-------------|
+| **`sandbox`** | Local eval, demos, onboarding | `internal` (ephemeral keys each boot) | Yes — `simple` pack: fixed tenant + two USD wallets (`SandboxIds`) |
+| **`normal`** | Staging / production / IDE against real IdP | `external` (your OIDC JWKS) | No — you create tenants |
+
+Richer demo packs (aggregator hierarchy, remittance / multi-currency, branded labels)
+are planned as **FL-157** — see plan §14 / [development.md](development.md). Until then,
+seed stays the minimal `simple` pack so JWT `tenant_id` and dump curls stay stable.
+
+JWT verification is **always on**. There is no `disabled` / `trust_edge` / auth-off mode.
+
+**Hard rule:** never set profile `sandbox` when `FINLEDGER_ENV=production` (or `prod`).
+Boot fails on purpose.
+
+Deep dive on claims and BFF patterns: [auth-integration.md](auth-integration.md).
+
+---
+
+## 3. Quickstart — sandbox (one sitting)
+
+Requires Docker. From the repo root:
 
 ```bash
 git clone https://github.com/PaulUno777/finledger.git
 cd finledger
 cp finledger.env.example .env
+
+# Build + start Postgres + sandbox app
 ./bin/finledger-cli up --profile sandbox --build
-# or: docker compose --profile sandbox up -d --build
+# equivalent: docker compose --profile sandbox up -d --build
+
 ./bin/finledger-cli doctor
-./bin/finledger-cli                 # interactive REPL
-# read config/sandbox-ready.txt — mint JWT + post journal (FL-155)
+./bin/finledger-cli status
 ```
 
-**Runtime profiles (ADR-016):** `sandbox` (seeded eval, in-box ephemeral JWT issuer) vs
-`normal` (real deploy). JWT verification is **always on** — no auth-off / trust_edge /
-security modes. Who issues tokens: [auth-integration.md](auth-integration.md).
-Never combine profile `sandbox` with `FINLEDGER_ENV=production`.
+Wait until health is up:
 
-## 3. Production integration checklist
-
-1. **Image (canonical):** pull `${DOCKERHUB_USERNAME}/finledger:<semver>` or build from tag.
-   Server fat JAR on GitHub Release is an **escape hatch with weaker liability** than the image.
-2. **Profile:** `normal` + issuer **external** OIDC (issuer/JWKS). Prefer not to run production
-   on the in-box issuer alone. Your IdP/BFF puts FinLedger claims on the JWT; FinLedger only
-   verifies — see [auth-integration.md](auth-integration.md).
-3. **Scopes:** `ledger:read` | `ledger:write` | `ledger:admin`; claim `tenant_id`; enforce `exp`
-   + ledger max TTL.
-4. **Tenants:** create via CLI or `POST /api/v1/tenants` (admin).
-5. **Accounts / postings:** always send `Idempotency-Key` on mutations.
-6. **FX / splits / rails:** configure per tenant; freeze rates into journal.
-7. **Audit:** hash-chained `audit_log`; verify integrity endpoint/job.
-8. **Observability:** scrape `:8081/actuator/prometheus`; optional OTLP.
-9. **Secrets:** env / KMS via `SecretsProvider` — never bake into the image.
-10. **Swagger:** disable in prod; use CLI + OpenAPI artifact for operators.
-11. **Interservice:** short-lived JWT on every call; mTLS only as **additive** transport.
-
-## 4. Mapping to your architecture
-
-```text
-Your API / BFF / workers
-        │  HTTPS + Idempotency-Key + Bearer JWT (short-lived)
-        ▼
-FinLedger (Docker Hub image / K8s)
-        │  JDBC
-        ▼
-Your Postgres (RLS enabled)
+```bash
+curl -s http://localhost:8081/actuator/health
+# {"status":"UP",...}
 ```
 
-If auth terminates at your gateway/BFF: still **pass through** or **token-exchange** a
-verifiable JWT to FinLedger — never strip auth and call the ledger open
-([auth-integration.md](auth-integration.md)).
+### 3.1 Mint a short-lived JWT
 
-Optional adapters: FX provider, rail PSP, Vault, Kafka outbox publisher, fraud rules.
+Credentials are printed at boot and written to `config/sandbox-ready.txt` (gitignored):
 
-## 5. Failure modes you must design for
+```bash
+# Prefer the dump — secret is generated if you left FINLEDGER_SANDBOX_CLIENT_SECRET blank
+CLIENT_SECRET=$(awk -F= '/^clientSecret=/{print $2}' config/sandbox-ready.txt)
 
-- Idempotent retries (same key + same body → replay; body change → conflict)
-- Outbox lag if your event consumer is down
-- Fraud fail-open vs fail-closed per tenant
-- Multi-currency only through audited exchange operations
-- Token expiry / refresh (CLI and workers must refresh before `exp`)
+TOKEN=$(./bin/finledger-cli auth token \
+  --client-id sandbox \
+  --client-secret "$CLIENT_SECRET")
+echo "$TOKEN" | cut -c1-40   # should look like eyJ...
+```
 
-## 6. Security review questions
+Or raw HTTP:
 
-- Is TLS 1.3 terminated at the edge?
-- Are JWT algs restricted to RS256/ES256 with mandatory `exp` / max TTL?
-- Is `tenant_id` claim bound to path tenants?
-- Is sandbox profile impossible in production (code interlock)?
-- Is there any auth-off / trust_edge path? (Must be **no**.)
-- Is management port (`8081`) not public on the internet?
-- Is production on the Hub image (not an untracked JAR) unless escape hatch is documented?
+```bash
+curl -s -X POST http://localhost:8080/api/v1/auth/token \
+  -H 'Content-Type: application/json' \
+  -d "{\"grant_type\":\"client_credentials\",\"client_id\":\"sandbox\",\"client_secret\":\"$CLIENT_SECRET\"}"
+```
 
-## 7. Next steps after eval
+Unauthenticated API calls must fail:
 
-- Auth land: FL-155 (sandbox JWT + mode cleanup) → FL-156 (persistent internal issuer for normal/CI)
-- API CLI UX / silent refresh (FL-153, after auth)
-- Contract tests / `/sdk-reference/` patterns (FL-160)
-- Hardening / load / chaos (FL-170)
-- Official multi-lang SDKs only if adoption warrants (FL-180)
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -X POST http://localhost:8080/api/v1/tenants/00000000-0000-0000-0000-000000000001/journal-entries \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: no-auth' \
+  -d '{}'
+# expect 401
+```
 
-## 8. Where to look in-repo
+### 3.2 Post a journal entry
 
-| Topic | Doc |
-|-------|-----|
-| Product rules | [PLAN_LEDGER_FINTECH.md](PLAN_LEDGER_FINTECH.md) |
-| Ops model | [ADR-015](adr/ADR-015-operational-model.md) |
-| Runtime profiles & JWT issuer | [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md) |
-| Auth integration (claims, BFF, CLI mint) | [auth-integration.md](auth-integration.md) |
-| Config keys | [configuration.md](configuration.md) |
-| Legacy security modes (until FL-156) | [ADR-014](adr/ADR-014-security-modes.md) |
-| Docker | [ADR-012](adr/ADR-012-docker-distribution.md) |
-| CLI | [ADR-010](adr/ADR-010-cli-http-client-module.md) |
+Seeded IDs (stable across boots):
+
+| Resource | UUID |
+|----------|------|
+| Tenant | `00000000-0000-0000-0000-000000000001` |
+| From account | `00000000-0000-0000-0000-000000000010` |
+| To account | `00000000-0000-0000-0000-000000000011` |
+
+```bash
+TENANT=00000000-0000-0000-0000-000000000001
+FROM=00000000-0000-0000-0000-000000000010
+TO=00000000-0000-0000-0000-000000000011
+
+curl -s -X POST "http://localhost:8080/api/v1/tenants/$TENANT/journal-entries" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: demo-$(uuidgen)" \
+  -d "{
+    \"transactionReference\": \"demo-tx-1\",
+    \"postings\": [
+      {\"accountId\":\"$FROM\",\"amount\":\"-10.00\",\"currencyCode\":\"USD\",\"settlementStatus\":\"SETTLED\"},
+      {\"accountId\":\"$TO\",\"amount\":\"10.00\",\"currencyCode\":\"USD\",\"settlementStatus\":\"SETTLED\"}
+    ]
+  }"
+# expect 201 + journalEntryId
+```
+
+Replay the **same** `Idempotency-Key` + same body → same response. Same key + different body → `409`.
+
+OpenAPI UI (dev): http://localhost:8080/swagger-ui.html
+
+Stop:
+
+```bash
+./bin/finledger-cli down   # keeps Postgres volume; never use down -v unless wiping
+```
 
 ---
 
-*Final CTO runbook (copy-paste env, K8s snippets, go-live checklist) will be
-completed at the end of the step-by-step validation track (FL-190).*
+## 4. Quickstart — normal (developer / staging)
+
+`normal` is the real deployment profile: **no seed**, JWT from your IdP by default.
+
+### 4.1 Local Postgres + app (external IdP)
+
+```bash
+docker compose up -d          # Postgres only
+export SPRING_PROFILES_ACTIVE=normal
+export FINLEDGER_ENV=local
+export FINLEDGER_SECURITY_ISSUER=external
+export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
+# or: SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=https://.../certs
+
+./mvnw -pl finledger spring-boot:run
+```
+
+Compose image path (`with-app`) expects the same OIDC vars in `.env`:
+
+```bash
+# .env
+SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
+
+docker compose --profile with-app up -d --build
+```
+
+### 4.2 IdP-less local `normal` (in-box issuer)
+
+Useful when you do not have Keycloak yet. Same mint API as sandbox; **no seed** —
+create tenants yourself. Tokens still carry a `tenant_id` claim (today: sandbox
+well-known UUID from the ephemeral issuer until FL-156 expands mint).
+
+```bash
+docker compose up -d
+export SPRING_PROFILES_ACTIVE=normal
+export FINLEDGER_ENV=local
+export FINLEDGER_SECURITY_ISSUER=internal
+export FINLEDGER_SANDBOX_CLIENT_SECRET=dev-only-secret   # pick one; required for mint
+
+./mvnw -pl finledger spring-boot:run
+```
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/token \
+  -H 'Content-Type: application/json' \
+  -d '{"grant_type":"client_credentials","client_id":"sandbox","client_secret":"dev-only-secret"}' \
+  | jq -r .access_token)
+
+# Create a tenant (admin scope on minted token)
+curl -s -X POST http://localhost:8080/api/v1/tenants \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Acme","type":"STANDALONE"}'
+```
+
+For production, prefer **`issuer=external`** and your company IdP — see §5.
+
+---
+
+## 5. Auth contract (what your team must implement)
+
+FinLedger only **verifies** JWTs. Your IdP or BFF must **issue** them with:
+
+| Requirement | Detail |
+|-------------|--------|
+| Algorithms | `RS256` or `ES256` only (`none` / `HS256` rejected) |
+| `iss` | Matches configured issuer |
+| `exp` | Required; ledger also caps lifetime (`finledger.security.max-token-ttl`, default `15m`) |
+| `tenant_id` | UUID must equal path `/api/v1/tenants/{tenantId}/…` |
+| Scopes | `ledger:read`, `ledger:write`, and/or `ledger:admin` |
+
+**BFF patterns (allowed):**
+
+1. **Pass-through** — forward the user’s IdP access token (already has claims).
+2. **Token exchange** — BFF obtains a ledger-audience token, then calls FinLedger.
+3. **Machine clients** — client-credentials → short-lived JWT with `tenant_id`.
+
+**Forbidden:** BFF strips auth and calls FinLedger open.
+
+CLI `./bin/finledger-cli auth token` is **sandbox / internal issuer only**. For
+`normal` + external IdP, export `FINLEDGER_TOKEN` from your IdP/BFF.
+
+Full matrix and examples: [auth-integration.md](auth-integration.md).
+
+---
+
+## 6. Configuration cheat sheet
+
+Layers (last wins): embedded YAML → optional `./config/` file → environment variables.
+
+| Variable | Typical value |
+|----------|----------------|
+| `SPRING_PROFILES_ACTIVE` | `sandbox` or `normal` |
+| `FINLEDGER_ENV` | `local` or `production` |
+| `FINLEDGER_SECURITY_ISSUER` | `internal` or `external` |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | IdP issuer (external) |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | Postgres (app role must **not** be superuser — RLS) |
+| `SPRING_FLYWAY_USER` / `SPRING_FLYWAY_PASSWORD` | Often DB superuser for migrations only |
+| `MANAGEMENT_SERVER_PORT` | `8081` (health / prometheus) |
+
+Full table: [configuration.md](configuration.md). Template: [`finledger.env.example`](../finledger.env.example).
+
+```bash
+./bin/finledger-cli config init --profile normal
+./bin/finledger-cli config validate
+./bin/finledger-cli restart --service app   # after YAML changes under Compose
+```
+
+---
+
+## 7. Production checklist
+
+1. Deploy Hub image `${DOCKERHUB_USERNAME}/finledger:<semver>` (not an ad-hoc JAR).
+2. `SPRING_PROFILES_ACTIVE=normal`, `FINLEDGER_ENV=production`, `issuer=external`.
+3. Configure OIDC issuer/JWKS; enforce claim contract (§5).
+4. Terminate TLS 1.3 at the edge; keep `:8081` off the public internet.
+5. Provision tenants (`POST /api/v1/tenants` or CLI) with `ledger:admin`.
+6. Every mutation sends `Idempotency-Key`.
+7. Scrape Prometheus; optional OTLP (`OTEL_EXPORTER_OTLP_ENDPOINT`).
+8. Secrets via env / `SecretsProvider` — never bake into the image.
+9. Disable Swagger in prod (`springdoc.*.enabled=false`).
+10. Design for outbox lag, idempotent retries, and token refresh before `exp`.
+
+Architecture sketch:
+
+```text
+Your API / BFF / workers
+        │  HTTPS + Idempotency-Key + Bearer JWT
+        ▼
+FinLedger (image)
+        │  JDBC (RLS)
+        ▼
+Your Postgres
+```
+
+---
+
+## 8. Failure modes to design for
+
+| Situation | Expected behavior |
+|-----------|-------------------|
+| Same idempotency key + same body | Replay stored response |
+| Same key + different body | `409 Conflict` |
+| JWT missing / bad signature / wrong alg | `401` |
+| `tenant_id` ≠ path tenant | `403` `TENANT_CLAIM_MISMATCH` |
+| Token past `exp` or over max TTL | `401` |
+| Sandbox + `FINLEDGER_ENV=production` | **Boot failure** |
+| Outbox consumer down | Events stay in `outbox_event` until drained |
+| Cross-currency without FX op | Rejected by domain rules |
+
+---
+
+## 9. Day-2 ops CLI
+
+```bash
+./bin/finledger-cli                 # REPL
+./bin/finledger-cli doctor
+./bin/finledger-cli status
+./bin/finledger-cli logs -f --service app-sandbox
+./bin/finledger-cli restart --service app-sandbox
+./bin/finledger-cli down            # preserves Postgres data
+```
+
+---
+
+## 10. Doc map
+
+| Topic | Doc |
+|-------|-----|
+| Auth claims / BFF | [auth-integration.md](auth-integration.md) |
+| Env & profiles | [configuration.md](configuration.md) |
+| Runtime decision | [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md) |
+| Ops model | [ADR-015](adr/ADR-015-operational-model.md) |
+| Docker image | [ADR-012](adr/ADR-012-docker-distribution.md) |
+| Product rules | [PLAN_LEDGER_FINTECH.md](PLAN_LEDGER_FINTECH.md) |
+| Roadmap tickets | [development.md](development.md) |
+
+---
+
+*Living document — keep commands aligned with `configuration.md`. Copy-paste K8s
+snippets and go-live runbook are completed in FL-190.*
