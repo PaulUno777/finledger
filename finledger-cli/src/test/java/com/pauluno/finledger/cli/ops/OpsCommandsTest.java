@@ -26,17 +26,20 @@ class OpsCommandsTest {
     Path tempDir;
 
     @Test
-    void doctor_reports_missing_env_and_passes_mode_check() throws Exception {
+    void doctor_reports_missing_env_and_passes_profile_check() throws Exception {
         Files.writeString(tempDir.resolve("docker-compose.yml"), "services: {}\n");
         Files.writeString(tempDir.resolve("finledger.env.example"), "FINLEDGER_ENV=local\n");
         Files.createDirectories(tempDir.resolve("config"));
         Files.writeString(
                 tempDir.resolve("config/application.yml"),
                 """
+                spring:
+                  profiles:
+                    active: sandbox
                 finledger:
                   env: local
                   security:
-                    mode: disabled
+                    issuer: internal
                 """);
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -50,9 +53,9 @@ class OpsCommandsTest {
             String text = out.toString(StandardCharsets.UTF_8);
             assertTrue(text.contains("finledger.env.example present"), text);
             assertTrue(text.contains(".env missing"), text);
-            assertTrue(text.contains("mode=disabled"), text);
-            assertTrue(text.contains("OK  security mode allowed"), text);
-            // Docker daemon may be unavailable in CI/sandbox; policy checks still pass.
+            assertTrue(text.contains("issuer=internal"), text);
+            assertTrue(text.contains("OK  runtime profile allowed"), text);
+            // Docker daemon may be unavailable in CI; policy checks still pass.
             assertTrue(code == 0 || code == 1, "unexpected exit " + code);
         } finally {
             System.setOut(previous);

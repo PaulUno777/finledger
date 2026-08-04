@@ -4,12 +4,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import com.pauluno.finledger.security.policy.SecurityMode;
-import com.pauluno.finledger.security.policy.SecurityModePolicy;
+import com.pauluno.finledger.security.policy.RuntimeSecurityPolicy;
 
 import picocli.CommandLine.Command;
 
-@Command(name = "doctor", description = "Local diagnostics for Compose + security mode")
+@Command(name = "doctor", description = "Local diagnostics for Compose + runtime profiles")
 public class DoctorCommand extends AbstractOpsCommand {
 
     @Override
@@ -43,23 +42,23 @@ public class DoctorCommand extends AbstractOpsCommand {
 
         EffectiveConfig cfg = EffectiveConfig.detect(root);
         try {
-            SecurityModePolicy.assertBootAllowed(
-                    cfg.mode(),
-                    cfg.env(),
-                    cfg.profilesHint().isBlank() ? List.of() : List.of(cfg.profilesHint().split(",")));
-            System.out.println("OK  security mode allowed for env/profiles");
+            List<String> profiles = cfg.profilesHint().isBlank()
+                    ? List.of()
+                    : List.of(cfg.profilesHint().split(","));
+            RuntimeSecurityPolicy.assertProfilesExclusive(profiles);
+            RuntimeSecurityPolicy.assertSandboxProfileAllowed(cfg.env(), profiles);
+            System.out.println("OK  runtime profile allowed for env");
         } catch (RuntimeException ex) {
             System.out.println("FAIL " + ex.getMessage());
             failures++;
         }
 
-        if (cfg.mode() != SecurityMode.ENFORCED) {
-            System.out.println("WARN mode=" + cfg.mode().configValue()
-                    + " — not for public production (ADR-014)");
+        if ("internal".equals(cfg.issuer())
+                && RuntimeSecurityPolicy.isProductionEnvironment(cfg.env())) {
+            System.out.println("WARN issuer=internal with production env — prefer external IdP");
         }
 
         probeHealth(managementUrl);
         return failures == 0 ? 0 : 1;
     }
 }
-

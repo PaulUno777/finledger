@@ -369,7 +369,7 @@ Configuration : `spring.threads.virtual.enabled=true`. Éviter `synchronized` (�
 
 **Cœur non-négociable** : `spring-boot-starter-webmvc`, `spring-boot-starter-validation`, `spring-boot-starter-actuator`, `spring-boot-starter-data-jpa` + `spring-boot-starter-flyway` + `flyway-database-postgresql` + `postgresql`, `spring-boot-starter-security` + `spring-boot-starter-security-oauth2-resource-server`, ArchUnit (test).
 
-**Modules optionnels** : `spring-boot-starter-kafka` (si l'outbox in-box ne suffit plus), Resilience4j (`ExternalRateProvider`), `spring-boot-starter-opentelemetry`, `spring-boot-starter-data-redis`.
+**Modules optionnels** : `spring-boot-starter-kafka` (si l'outbox in-box ne suffit plus), Resilience4j (`ExternalRateProvider`), `spring-boot-starter-opentelemetry`, Redis optionnel plus tard (`RateCache` distribué — défaut in-memory aujourd'hui).
 
 **Tests** : `net.jqwik:jqwik`, `org.pitest:pitest-maven`, Testcontainers — voir aussi `.cursor/rules/testing-rules.mdc`.
 
@@ -504,7 +504,7 @@ Ni "tout en variables d'environnement" (illisible à grande échelle) ni "wizard
 3. **Variables d'environnement (relaxed binding)** — pour les orchestrateurs qui préfèrent l'injection d'env vars (ConfigMap/Secret Kubernetes, task defs ECS) à un fichier monté ; toute clé YAML est overridable via son équivalent `SCREAMING_SNAKE_CASE`. Fichier de référence **`finledger.env.example`** à la racine : toutes les options documentées avec défauts et descriptions ; `cp finledger.env.example .env` pour démarrer.
 4. **Secrets jamais dans le fichier de config** — toujours via le port `SecretsProvider` (§2.3, §11).
 5. **Premier lancement sans tenant configuré** : le service démarre normalement (jamais de blocage), log un message explicite pointant vers la CLI (§16) ou `POST /api/v1/tenants` pour créer le premier tenant — pas de wizard qui empêcherait le conteneur de passer `healthy`.
-6. **Profils runtime & JWT (ADR-016)** : `sandbox` (seed + émetteur interne, clés éphémères) vs `normal` (IdP externe par défaut, ou émetteur interne). Vérification JWT **toujours** active — pas d'auth-off. Jusqu'à FL-155/156, le runtime conserve encore les modes ADR-014 (`enforced` / `static-token` / `disabled`) avec aliases de transition.
+6. **Profils runtime & JWT (ADR-016)** : `sandbox` (seed + émetteur interne, clés éphémères) vs `normal` (IdP externe par défaut, ou émetteur interne). Vérification JWT **toujours** active — pas d'auth-off, pas de modes `enforced`/`static-token`/`disabled`.
 7. **Livraison** : image Hub = artefact prod canonique ; fat JAR = échappatoire documentée (garantie de liability **moindre**) ; clone + Compose = eval.
 
 ### 18.2 Pipeline GitHub Actions
@@ -527,7 +527,7 @@ docker compose --profile sandbox up -d --build
 # credentials / curls : config/sandbox-ready.txt
 ```
 
-**Production :** image Hub + `with-app` (ou K8s) avec profil `normal`, issuer OIDC **externe**, JWT always-on ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)). Le fat JAR serveur reste une échappatoire hors conteneur (**liability moindre** que l'image). Redémarrer l'app (`compose restart`) sans perdre les données = volumes Postgres/Redis nommés.
+**Production :** image Hub + `with-app` (ou K8s) avec profil `normal`, issuer OIDC **externe**, JWT always-on ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)). Le fat JAR serveur reste une échappatoire hors conteneur (**liability moindre** que l'image). Redémarrer l'app (`compose restart`) sans perdre les données = volume Postgres nommé.
 
 Voir [ADR-012](adr/ADR-012-docker-distribution.md), [ADR-015](adr/ADR-015-operational-model.md), [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 
@@ -553,6 +553,7 @@ Voir [ADR-012](adr/ADR-012-docker-distribution.md), [ADR-015](adr/ADR-015-operat
 15b. Modes de sécurité runnable + sandbox Compose (FL-151 / ADR-014).
 15c. Modèle ops : `finledger.env.example`, CLI ops+api, doctor/status/restart hints (FL-152 / ADR-015).
 15d. Profils `sandbox`/`normal` + émetteur JWT interne/externe, toujours-on verify ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md), FL-154 → FL-155 → FL-156) ; puis UX API CLI (FL-153).
+15e. **Sandbox scénarios riches (FL-157)** — packs de seed sélectionnables (`simple` | `aggregator` | `remittance`), labels démo optionnels (ex. EcoPay / Send Tunnel), `FINLEDGER_SANDBOX_SCENARIO` + `./bin/finledger-cli sandbox init` (prompts / non-interactif). Conserver `SandboxIds` comme contrat UUID du pack `simple` (JWT + ITs). Pas de wizard interactif au boot Spring.
 16. Contract tests vis-à-vis d'un "client fintech" fictif + client de référence non-officiel (`/sdk-reference/`, §15).
 17. Durcissement : chaos testing, tests de charge, revue de sécurité.
 18. **Guide CTO / intégration production** — runbook final pour intégrer FinLedger dans une stack fintech existante ([INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md), FL-190), après validation pas-à-pas.

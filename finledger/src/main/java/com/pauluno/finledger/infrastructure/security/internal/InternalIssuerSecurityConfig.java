@@ -1,4 +1,4 @@
-package com.pauluno.finledger.infrastructure.security;
+package com.pauluno.finledger.infrastructure.security.internal;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -12,22 +12,26 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
+import com.pauluno.finledger.infrastructure.security.LedgerAuthorities;
+import com.pauluno.finledger.infrastructure.security.TenantClaimAuthorizationFilter;
+
 /**
- * OIDC resource server (FL-100) — active when {@code finledger.security.mode=enforced}.
+ * JWT resource server backed by the in-box ephemeral issuer (sandbox / FL-155).
  */
 @Configuration
 @EnableWebSecurity
-@ConditionalOnProperty(prefix = "finledger.security", name = "mode", havingValue = "enforced", matchIfMissing = true)
-public class EnforcedSecurityConfig {
+@ConditionalOnProperty(prefix = "finledger.security", name = "issuer", havingValue = "internal")
+public class InternalIssuerSecurityConfig {
 
     @Bean
-    SecurityFilterChain enforcedSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain internalIssuerSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/actuator/prometheus").permitAll()
+                        .requestMatchers("/api/v1/auth/jwks", "/api/v1/auth/token").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants/*/rails/webhooks/settlement")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants")
@@ -46,9 +50,7 @@ public class EnforcedSecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
-                .addFilterAfter(
-                        new TenantClaimAuthorizationFilter(TenantClaimAuthorizationFilter.TenantBindingMode.JWT_CLAIM),
-                        BearerTokenAuthenticationFilter.class)
+                        .addFilterAfter(new TenantClaimAuthorizationFilter(), BearerTokenAuthenticationFilter.class)
                 .build();
     }
 }

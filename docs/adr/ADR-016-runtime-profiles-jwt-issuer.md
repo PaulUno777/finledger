@@ -117,14 +117,14 @@ mapped during FL-154–FL-156:
   sandbox vs normal story; gateway/BFF still works via minted JWTs.
 - Trade-off: sandbox and IdP-less CI need the in-box issuer (FL-155 / FL-156);
   CLI must learn token refresh (FL-153 after auth land).
-- **Implementation is gated:** this ADR is accepted as design; code lands in
-  FL-154 (policy/config aliases), FL-155 (sandbox issuer + seed), FL-156
-  (internal issuer for normal; remove eternal static-token Bearer). Until then,
-  runtime still follows ADR-014.
+- **Implementation:** FL-154 (docs) → FL-155 (**sandbox ephemeral issuer + removal of
+  ADR-014 modes and `local`/`prod`/`test` Spring profiles** — profile axis is only
+  `sandbox`|`normal`) → FL-156 (persistent internal issuer for normal/CI).
+  See [auth-integration.md](../auth-integration.md).
 
 ## Explicitly not in the ADR/docs pass
 
-- Implementing the in-box JWT issuer or changing filter chains
+- Persistent internal issuer for normal/CI (FL-156)
 - Embedding Keycloak
 - Dropping Hub releases or the JAR escape hatch
 - Rewriting the CLI in another language
@@ -132,6 +132,7 @@ mapped during FL-154–FL-156:
 ## References
 
 - `docs/PLAN_LEDGER_FINTECH.md` §11, §18, §19
-- [ADR-008](ADR-008-oidc-resource-server.md), [ADR-014](ADR-014-security-modes.md),
+- [auth-integration.md](../auth-integration.md)
+- [ADR-008](ADR-008-oidc-resource-server.md), [ADR-014](ADR-014-security-modes.md) (superseded runtime),
   [ADR-015](ADR-015-operational-model.md), [ADR-012](ADR-012-docker-distribution.md)
 - Tickets: FL-154, FL-155, FL-156; FL-153 depends on this model

@@ -12,13 +12,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
-import com.pauluno.finledger.application.port.out.SecretsProvider;
 import com.pauluno.finledger.application.port.out.TenantRepository;
 import com.pauluno.finledger.application.tenant.TenantContext;
 import com.pauluno.finledger.domain.model.AccountStatus;
@@ -26,63 +26,49 @@ import com.pauluno.finledger.domain.model.AccountType;
 import com.pauluno.finledger.domain.model.LedgerAccount;
 import com.pauluno.finledger.domain.model.Tenant;
 import com.pauluno.finledger.domain.model.TenantType;
-import com.pauluno.finledger.infrastructure.security.LedgerAuthorities;
-import com.pauluno.finledger.infrastructure.security.StaticTokenHolder;
+import com.pauluno.finledger.infrastructure.security.internal.EphemeralInternalIssuer;
 import com.pauluno.finledger.security.policy.SandboxIds;
-import com.pauluno.finledger.security.policy.SecurityMode;
 
 /**
- * Seeds sandbox tenant/accounts and dumps credentials for eval modes (FL-151).
+ * Seeds sandbox tenant/accounts and dumps mint credentials (FL-155 / ADR-016).
  */
 @Component
+@Profile("sandbox")
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class SandboxBootstrap implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SandboxBootstrap.class);
     private static final Currency USD = Currency.getInstance("USD");
 
-    private final String modeRaw;
     private final String dumpPath;
     private final String baseUrl;
     private final TenantRepository tenantRepository;
     private final LedgerAccountRepository ledgerAccountRepository;
-    private final SecretsProvider secretsProvider;
-    private final StaticTokenHolder staticTokenHolder;
+    private final EphemeralInternalIssuer issuer;
     private final TransactionTemplate transactionTemplate;
 
     public SandboxBootstrap(
-            @Value("${finledger.security.mode:enforced}") String modeRaw,
             @Value("${finledger.sandbox.dump-path:config/sandbox-ready.txt}") String dumpPath,
             @Value("${finledger.sandbox.base-url:http://localhost:8080}") String baseUrl,
             TenantRepository tenantRepository,
             LedgerAccountRepository ledgerAccountRepository,
-            SecretsProvider secretsProvider,
-            StaticTokenHolder staticTokenHolder,
+            EphemeralInternalIssuer issuer,
             TransactionTemplate transactionTemplate
     ) {
-        this.modeRaw = modeRaw;
         this.dumpPath = dumpPath;
         this.baseUrl = baseUrl;
         this.tenantRepository = tenantRepository;
         this.ledgerAccountRepository = ledgerAccountRepository;
-        this.secretsProvider = secretsProvider;
-        this.staticTokenHolder = staticTokenHolder;
+        this.issuer = issuer;
         this.transactionTemplate = transactionTemplate;
     }
 
     @Override
     public void run(ApplicationArguments args) {
-        SecurityMode mode = SecurityMode.parse(modeRaw);
-        if (mode == SecurityMode.ENFORCED) {
-            return;
-        }
         TenantContext.enableBypass();
         try {
             transactionTemplate.executeWithoutResult(status -> seedSandboxData());
-            String token = mode == SecurityMode.STATIC_TOKEN
-                    ? staticTokenHolder.resolve(secretsProvider)
-                    : null;
-            String content = buildDump(mode, token);
+            String content = buildDump();
             log.info("\n{}", content);
             writeDump(content);
         } finally {
@@ -116,36 +102,41 @@ public class SandboxBootstrap implements ApplicationRunner {
         ));
     }
 
-    private String buildDump(SecurityMode mode, String token) {
+    private String buildDump() {
         String tenant = SandboxIds.TENANT_ID.toString();
         String from = SandboxIds.FROM_ACCOUNT_ID.toString();
         String to = SandboxIds.TO_ACCOUNT_ID.toString();
+        String demoToken = issuer.mintAccessToken(issuer.clientId(), issuer.clientSecret());
         StringBuilder sb = new StringBuilder();
-        sb.append("=== FinLedger sandbox ready (FL-151) ===\n");
-        sb.append("mode=").append(mode.configValue()).append('\n');
+        sb.append("=== FinLedger sandbox ready (FL-155) ===\n");
+        sb.append("issuer=").append(issuer.issuer()).append('\n');
         sb.append("baseUrl=").append(baseUrl).append('\n');
         sb.append("tenantId=").append(tenant).append('\n');
         sb.append("fromAccountId=").append(from).append('\n');
         sb.append("toAccountId=").append(to).append('\n');
-        if (token != null) {
-            sb.append("staticToken=").append(token).append('\n');
-            sb.append("header ").append(LedgerAuthorities.TENANT_HEADER).append("=").append(tenant).append('\n');
-        }
+        sb.append("clientId=").append(issuer.clientId()).append('\n');
+        sb.append("clientSecret=").append(issuer.clientSecret()).append('\n');
+        sb.append("maxTokenTtl=").append(issuer.maxTokenTtl()).append('\n');
         sb.append('\n');
-        sb.append("# Post a demo transfer:\n");
-        if (mode == SecurityMode.DISABLED) {
-            sb.append("curl -s -X POST '").append(baseUrl).append("/api/v1/tenants/").append(tenant)
-                    .append("/journal-entries' \\\n");
-            sb.append("  -H 'Content-Type: application/json' \\\n");
-            sb.append("  -H 'Idempotency-Key: sandbox-demo-1' \\\n");
-        } else {
-            sb.append("curl -s -X POST '").append(baseUrl).append("/api/v1/tenants/").append(tenant)
-                    .append("/journal-entries' \\\n");
-            sb.append("  -H 'Authorization: Bearer ").append(token).append("' \\\n");
-            sb.append("  -H '").append(LedgerAuthorities.TENANT_HEADER).append(": ").append(tenant).append("' \\\n");
-            sb.append("  -H 'Content-Type: application/json' \\\n");
-            sb.append("  -H 'Idempotency-Key: sandbox-demo-1' \\\n");
-        }
+        sb.append("# Mint a short-lived JWT (re-run when expired):\n");
+        sb.append("curl -s -X POST '").append(baseUrl).append("/api/v1/auth/token' \\\n");
+        sb.append("  -H 'Content-Type: application/json' \\\n");
+        sb.append("  -d '{\"grant_type\":\"client_credentials\",\"client_id\":\"")
+                .append(issuer.clientId())
+                .append("\",\"client_secret\":\"")
+                .append(issuer.clientSecret())
+                .append("\"}'\n");
+        sb.append("# Or: ./bin/finledger-cli auth token --client-id ")
+                .append(issuer.clientId())
+                .append(" --client-secret '<from dump>'\n");
+        sb.append('\n');
+        sb.append("# Post a demo transfer (token expires — remint as needed):\n");
+        sb.append("TOKEN='").append(demoToken).append("'\n");
+        sb.append("curl -s -X POST '").append(baseUrl).append("/api/v1/tenants/").append(tenant)
+                .append("/journal-entries' \\\n");
+        sb.append("  -H \"Authorization: Bearer $TOKEN\" \\\n");
+        sb.append("  -H 'Content-Type: application/json' \\\n");
+        sb.append("  -H 'Idempotency-Key: sandbox-demo-1' \\\n");
         sb.append("  -d '{\"transactionReference\":\"sandbox-tx-1\",\"postings\":[")
                 .append("{\"accountId\":\"").append(from)
                 .append("\",\"amount\":\"-10.00\",\"currencyCode\":\"USD\",\"settlementStatus\":\"SETTLED\"},")

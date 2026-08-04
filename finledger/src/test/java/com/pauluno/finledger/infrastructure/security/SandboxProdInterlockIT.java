@@ -9,19 +9,18 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import com.pauluno.finledger.FinledgerApplication;
-import com.pauluno.finledger.security.policy.SecurityModeViolationException;
+import com.pauluno.finledger.security.policy.RuntimeSecurityViolationException;
 
 @Tag("integration")
 @Testcontainers
 @SuppressWarnings("resource")
-class SecurityModeProdInterlockIT {
+class SandboxProdInterlockIT {
 
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(
@@ -29,14 +28,8 @@ class SecurityModeProdInterlockIT {
             .withDatabaseName("finledger")
             .withUsername("finledger")
             .withPassword("finledger");
-
-    @Container
-    static final GenericContainer<?> REDIS = new GenericContainer<>(
-            DockerImageName.parse("redis:8-alpine"))
-            .withExposedPorts(6379);
-
     @Test
-    void should_fail_startup_when_disabled_with_prod_profile() throws Exception {
+    void should_fail_startup_when_sandbox_with_production_env() throws Exception {
         Map<String, Object> props = new HashMap<>();
         props.put("spring.datasource.url", POSTGRES.getJdbcUrl());
         props.put("spring.datasource.username", "finledger_app");
@@ -48,25 +41,21 @@ class SecurityModeProdInterlockIT {
         props.put("spring.flyway.password", POSTGRES.getPassword());
         props.put("spring.jpa.hibernate.ddl-auto", "validate");
         props.put("spring.flyway.enabled", "true");
-        props.put("spring.data.redis.host", REDIS.getHost());
-        props.put("spring.data.redis.port", String.valueOf(REDIS.getMappedPort(6379)));
-        props.put("REDIS_HOST", REDIS.getHost());
-        props.put("REDIS_PORT", String.valueOf(REDIS.getMappedPort(6379)));
         props.put("finledger.outbox.poll-interval-ms", "3600000");
-        props.put("finledger.security.mode", "disabled");
-        props.put("finledger.env", "local");
-        props.put("spring.profiles.active", "prod");
+        props.put("finledger.security.issuer", "internal");
+        props.put("finledger.env", "production");
+        props.put("spring.profiles.active", "sandbox");
         props.put("server.port", "0");
         props.put("management.server.port", "0");
-        props.put("finledger.security.warn-interval-ms", "3600000");
         props.put("finledger.sandbox.dump-path",
                 java.nio.file.Files.createTempFile("sandbox-ready-", ".txt").toString());
+        props.put("finledger.sandbox.client-secret", "it-secret");
 
         SpringApplication app = new SpringApplication(FinledgerApplication.class);
         app.setDefaultProperties(props);
         app.setWebApplicationType(WebApplicationType.SERVLET);
 
         assertThatThrownBy(app::run)
-                .hasRootCauseInstanceOf(SecurityModeViolationException.class);
+                .hasRootCauseInstanceOf(RuntimeSecurityViolationException.class);
     }
 }

@@ -14,12 +14,10 @@ import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.pauluno.finledger.security.policy.SecurityMode;
-
 import picocli.CommandLine.Option;
 
 /**
- * Shared options and helpers for local Compose ops (FL-152 / ADR-015).
+ * Shared options and helpers for local Compose ops (ADR-015 / ADR-016).
  */
 abstract class AbstractOpsCommand implements Callable<Integer> {
 
@@ -41,7 +39,7 @@ abstract class AbstractOpsCommand implements Callable<Integer> {
         EffectiveConfig cfg = EffectiveConfig.detect(root);
         System.out.println(
                 "[ops] project=" + root
-                        + " mode=" + cfg.mode().configValue()
+                        + " issuer=" + cfg.issuer()
                         + " env=" + cfg.env()
                         + (cfg.profilesHint().isBlank() ? "" : " profiles~=" + cfg.profilesHint()));
     }
@@ -71,15 +69,14 @@ abstract class AbstractOpsCommand implements Callable<Integer> {
     }
 }
 
-record EffectiveConfig(SecurityMode mode, String env, String profilesHint) {
+record EffectiveConfig(String issuer, String env, String profilesHint) {
 
     static EffectiveConfig detect(Path projectRoot) {
-        // Project-local first: ops commands are scoped to --project-dir / CWD.
-        String modeRaw = firstNonBlank(
-                readDotEnv(projectRoot, "FINLEDGER_SECURITY_MODE"),
-                readYamlScalar(projectRoot.resolve("config/application.yml"), "mode"),
-                System.getenv("FINLEDGER_SECURITY_MODE")
-        ).orElse("enforced");
+        String issuerRaw = firstNonBlank(
+                readDotEnv(projectRoot, "FINLEDGER_SECURITY_ISSUER"),
+                readYamlScalar(projectRoot.resolve("config/application.yml"), "issuer"),
+                System.getenv("FINLEDGER_SECURITY_ISSUER")
+        ).orElse("external");
         String env = firstNonBlank(
                 readDotEnv(projectRoot, "FINLEDGER_ENV"),
                 readYamlScalar(projectRoot.resolve("config/application.yml"), "env"),
@@ -87,9 +84,16 @@ record EffectiveConfig(SecurityMode mode, String env, String profilesHint) {
         ).orElse("local");
         String profiles = firstNonBlank(
                 readDotEnv(projectRoot, "SPRING_PROFILES_ACTIVE"),
+                readYamlScalar(projectRoot.resolve("config/application.yml"), "active"),
                 System.getenv("SPRING_PROFILES_ACTIVE")
         ).orElse("");
-        return new EffectiveConfig(SecurityMode.parse(modeRaw), env, profiles);
+        String issuer;
+        try {
+            issuer = com.pauluno.finledger.security.policy.RuntimeSecurityPolicy.normalizeIssuer(issuerRaw);
+        } catch (IllegalArgumentException ex) {
+            issuer = issuerRaw;
+        }
+        return new EffectiveConfig(issuer, env, profiles);
     }
 
     private static Optional<String> firstNonBlank(String... values) {

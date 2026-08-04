@@ -1,6 +1,7 @@
 package com.pauluno.finledger.cli;
 
 import com.pauluno.finledger.cli.command.AccountCommand;
+import com.pauluno.finledger.cli.command.AuthCommand;
 import com.pauluno.finledger.cli.command.ConfigCommand;
 import com.pauluno.finledger.cli.command.FxCommand;
 import com.pauluno.finledger.cli.command.ShellCommand;
@@ -29,6 +30,7 @@ import picocli.CommandLine.Mixin;
                 SplitRulesCommand.class,
                 ShellCommand.class,
                 ConfigCommand.class,
+                AuthCommand.class,
                 StatusCommand.class,
                 DoctorCommand.class,
                 UpCommand.class,

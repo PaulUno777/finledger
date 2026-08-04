@@ -1,6 +1,6 @@
 # ADR-014 — Runnable security modes (eval / CI / prod)
 
-- **Status:** Accepted
+- **Status:** Superseded (runtime) by [ADR-016](ADR-016-runtime-profiles-jwt-issuer.md)
 - **Date:** 2026-07-31
 - **Deciders:** FinLedger maintainers
 - **Amends:** [ADR-008](ADR-008-oidc-resource-server.md)

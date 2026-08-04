@@ -24,7 +24,7 @@ no PIT baseline or threshold yet.
    (`linux/amd64`, `linux/arm64`), push
    `${DOCKERHUB_USERNAME}/finledger:<semver>` and `:latest`, then create a GitHub
    Release from Conventional Commit subjects since the previous tag.
-4. Compose keeps Postgres + Redis on the default profile; the server image is
+4. Compose keeps Postgres on the default profile; the server image is
    under Compose profile `with-app` so local DB-only workflows stay unchanged.
 5. **PIT mutation gating is deferred to FL-170 (hardening).** Introducing a
    threshold without a measured domain baseline would either fail CI arbitrarily

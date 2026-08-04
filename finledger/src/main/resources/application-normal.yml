@@ -1,0 +1,22 @@
+# Default non-sandbox runtime (ADR-016). Local IDE defaults against Compose Postgres.
+# Production: override via env (DB_URL, OIDC issuer) — do not commit secrets.
+
+spring:
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/finledger}
+    username: ${DB_USERNAME:finledger_app}
+    password: ${DB_PASSWORD:finledger}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+    user: ${SPRING_FLYWAY_USER:finledger}
+    password: ${SPRING_FLYWAY_PASSWORD:finledger}
+
+finledger:
+  security:
+    issuer: ${FINLEDGER_SECURITY_ISSUER:external}

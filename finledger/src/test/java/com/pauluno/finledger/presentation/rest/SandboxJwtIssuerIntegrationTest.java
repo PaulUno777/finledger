@@ -1,5 +1,6 @@
 package com.pauluno.finledger.presentation.rest;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -13,23 +14,33 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.GenericContainer;
+import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pauluno.finledger.security.policy.SandboxIds;
 
+/**
+ * FL-155: sandbox profile + ephemeral internal issuer (replaces auth-off DisabledSecurity IT).
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("sandbox")
 @Testcontainers
 @Tag("integration")
 @SuppressWarnings("resource")
-class DisabledSecurityIntegrationTest {
+class SandboxJwtIssuerIntegrationTest {
+
+    private static final String CLIENT_ID = "sandbox";
+    private static final String CLIENT_SECRET = "integration-test-secret";
 
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(
@@ -37,11 +48,6 @@ class DisabledSecurityIntegrationTest {
             .withDatabaseName("finledger")
             .withUsername("finledger")
             .withPassword("finledger");
-
-    @Container
-    static final GenericContainer<?> REDIS = new GenericContainer<>(
-            DockerImageName.parse("redis:8-alpine"))
-            .withExposedPorts(6379);
 
     static final String DUMP_PATH;
 
@@ -62,28 +68,38 @@ class DisabledSecurityIntegrationTest {
         registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("spring.flyway.enabled", () -> "true");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
         registry.add("finledger.outbox.poll-interval-ms", () -> "3600000");
-        registry.add("finledger.security.mode", () -> "disabled");
+        registry.add("finledger.security.issuer", () -> "internal");
+        registry.add("finledger.security.max-token-ttl", () -> "15m");
         registry.add("finledger.env", () -> "local");
-        registry.add("spring.profiles.active", () -> "sandbox");
         registry.add("finledger.sandbox.dump-path", () -> DUMP_PATH);
-        registry.add("finledger.security.warn-interval-ms", () -> "3600000");
+        registry.add("finledger.sandbox.client-id", () -> CLIENT_ID);
+        registry.add("finledger.sandbox.client-secret", () -> CLIENT_SECRET);
     }
 
     @Autowired
     private MockMvc mockMvc;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @Test
-    void should_post_journal_without_auth_on_sandbox_tenant() throws Exception {
-        UUID tenantId = SandboxIds.TENANT_ID;
+    void should_reject_unauthenticated_api_with_401() throws Exception {
+        mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", SandboxIds.TENANT_ID)
+                        .header("Idempotency-Key", "no-auth")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"transactionReference\":\"x\",\"postings\":[]}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void should_mint_jwt_and_post_journal_on_sandbox_tenant() throws Exception {
+        String token = mintToken();
         UUID fromId = SandboxIds.FROM_ACCOUNT_ID;
         UUID toId = SandboxIds.TO_ACCOUNT_ID;
 
         String body = """
                 {
-                  "transactionReference": "sandbox-it-1",
+                  "transactionReference": "sandbox-jwt-it-1",
                   "postings": [
                     {"accountId": "%s", "amount": "-5.00", "currencyCode": "USD", "settlementStatus": "SETTLED"},
                     {"accountId": "%s", "amount": "5.00", "currencyCode": "USD", "settlementStatus": "SETTLED"}
@@ -91,8 +107,9 @@ class DisabledSecurityIntegrationTest {
                 }
                 """.formatted(fromId, toId);
 
-        mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", tenantId)
-                        .header("Idempotency-Key", "sandbox-it-" + UUID.randomUUID())
+        mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", SandboxIds.TENANT_ID)
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "sandbox-jwt-it-" + UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
@@ -100,12 +117,47 @@ class DisabledSecurityIntegrationTest {
     }
 
     @Test
-    void should_forbid_non_sandbox_tenant_path() throws Exception {
+    void should_forbid_tenant_claim_mismatch() throws Exception {
+        String token = mintToken();
         UUID other = UUID.fromString("00000000-0000-0000-0000-000000000099");
         mockMvc.perform(post("/api/v1/tenants/{tenantId}/journal-entries", other)
+                        .header("Authorization", "Bearer " + token)
                         .header("Idempotency-Key", "x")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"transactionReference\":\"x\",\"postings\":[]}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void should_reject_invalid_client_credentials() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"grant_type":"client_credentials","client_id":"sandbox","client_secret":"wrong"}
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("invalid_client"));
+    }
+
+    @Test
+    void should_expose_jwks_without_auth() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/jwks"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.keys").isArray())
+                .andExpect(jsonPath("$.keys[0].kty").value("RSA"));
+    }
+
+    private String mintToken() throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"grant_type":"client_credentials","client_id":"%s","client_secret":"%s"}
+                                """.formatted(CLIENT_ID, CLIENT_SECRET)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.access_token").isNotEmpty())
+                .andExpect(jsonPath("$.token_type").value("Bearer"))
+                .andReturn();
+        JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
+        return json.get("access_token").asText();
     }
 }

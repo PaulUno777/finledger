@@ -59,10 +59,11 @@ docker compose --profile sandbox up -d --build
 Production / CTO checklist outline: [docs/INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md)
 (finalized after remaining roadmap validation). Ops model: [ADR-015](docs/adr/ADR-015-operational-model.md).
 
-OIDC-enforced local run:
+Normal profile + OIDC local run:
 
 ```bash
 docker compose up -d
+export SPRING_PROFILES_ACTIVE=normal
 export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
 ./mvnw -pl finledger spring-boot:run
 ```
@@ -94,10 +95,11 @@ Provisioning / ops CLI (separate module — [ADR-010](docs/adr/ADR-010-cli-http-
 ./bin/finledger-cli doctor
 ./bin/finledger-cli up --profile sandbox --build
 
-# API provisioning — sandbox needs no token; static-token uses the dumped secret as --token
-export FINLEDGER_TOKEN=<jwt-or-static-token>
+# API provisioning — mint JWT in sandbox, or export IdP token for normal
+./bin/finledger-cli auth token --client-secret '<from config/sandbox-ready.txt>'
+export FINLEDGER_TOKEN=<jwt>
 ./bin/finledger-cli tenant create --name Acme --type STANDALONE
-./bin/finledger-cli config init --mode disabled
+./bin/finledger-cli config init --profile normal
 ```
 
 Production: place `bin/finledger-cli` (or `finledger-cli.cmd`) next to `finledger-cli.jar`,
@@ -142,8 +144,9 @@ curl -s -X POST "http://localhost:8080/api/v1/tenants/$TENANT/journal-entries" \
 ```
 
 FL-030 note: posting currency must match each account’s currency unless an FX
-path is configured (FL-060). API routes require OIDC Bearer JWTs in `enforced`
-mode (FL-100); use Compose `sandbox` or `static-token` for local/CI eval (FL-151).
+path is configured (FL-060). API routes always require a short-lived Bearer JWT
+([ADR-016](docs/adr/ADR-016-runtime-profiles-jwt-issuer.md)); use Compose `sandbox`
+for eval or profile `normal` + your IdP for real deploys.
 
 ## Guarantees (target)
 
