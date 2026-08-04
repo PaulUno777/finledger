@@ -1,4 +1,4 @@
-# Local stack for FinLedger (Postgres + Redis; optional app / observability / sandbox profiles).
+# Local stack for FinLedger (Postgres; optional app / observability / sandbox profiles).
 # App config layers: image/defaults → optional file mount → env vars.
 #
 #   docker compose up -d
@@ -34,22 +34,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:8-alpine
-    container_name: finledger-redis
-
-    ports:
-      - "6379:6379"
-
-    volumes:
-      - redis_data:/data
-
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Start with: docker compose --profile with-app up -d --build
   # Put OIDC issuer (or JWKS URI) in a project `.env` file, e.g.
   #   SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
@@ -60,8 +44,6 @@ services:
     container_name: finledger-app
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     ports:
       - "8080:8080"
@@ -79,8 +61,6 @@ services:
       DB_PASSWORD: finledger
       SPRING_FLYWAY_USER: finledger
       SPRING_FLYWAY_PASSWORD: finledger
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
     volumes:
       - ./config:/workspace/config:ro
 
@@ -93,8 +73,6 @@ services:
     container_name: finledger-app-sandbox
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     ports:
       - "8080:8080"
@@ -110,8 +88,6 @@ services:
       DB_PASSWORD: finledger
       SPRING_FLYWAY_USER: finledger
       SPRING_FLYWAY_PASSWORD: finledger
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
     volumes:
       - ./config:/workspace/config
 
@@ -144,4 +120,3 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:

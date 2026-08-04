@@ -30,8 +30,3 @@ spring:
     enabled: true
     user: ${SPRING_FLYWAY_USER:finledger}
     password: ${SPRING_FLYWAY_PASSWORD:finledger}
-
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}

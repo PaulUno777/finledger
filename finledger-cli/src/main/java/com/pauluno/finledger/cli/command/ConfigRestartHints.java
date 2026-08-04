@@ -8,7 +8,7 @@ public final class ConfigRestartHints {
     public static final String RESTART_NOTE = """
             NOTE: Restart the FinLedger app to apply security/config changes.
               finledger-cli restart
-              # Postgres/Redis volumes keep data — do not use down -v unless wiping.
+              # Postgres volumes keep data — do not use down -v unless wiping.
             """;
 
     private ConfigRestartHints() {

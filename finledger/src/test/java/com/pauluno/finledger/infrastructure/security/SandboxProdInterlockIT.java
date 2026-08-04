@@ -9,7 +9,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.WebApplicationType;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -29,12 +28,6 @@ class SandboxProdInterlockIT {
             .withDatabaseName("finledger")
             .withUsername("finledger")
             .withPassword("finledger");
-
-    @Container
-    static final GenericContainer<?> REDIS = new GenericContainer<>(
-            DockerImageName.parse("redis:8-alpine"))
-            .withExposedPorts(6379);
-
     @Test
     void should_fail_startup_when_sandbox_with_production_env() throws Exception {
         Map<String, Object> props = new HashMap<>();
@@ -48,10 +41,6 @@ class SandboxProdInterlockIT {
         props.put("spring.flyway.password", POSTGRES.getPassword());
         props.put("spring.jpa.hibernate.ddl-auto", "validate");
         props.put("spring.flyway.enabled", "true");
-        props.put("spring.data.redis.host", REDIS.getHost());
-        props.put("spring.data.redis.port", String.valueOf(REDIS.getMappedPort(6379)));
-        props.put("REDIS_HOST", REDIS.getHost());
-        props.put("REDIS_PORT", String.valueOf(REDIS.getMappedPort(6379)));
         props.put("finledger.outbox.poll-interval-ms", "3600000");
         props.put("finledger.security.issuer", "internal");
         props.put("finledger.env", "production");

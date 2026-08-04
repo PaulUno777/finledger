@@ -369,7 +369,7 @@ Configuration : `spring.threads.virtual.enabled=true`. Éviter `synchronized` (�
 
 **Cœur non-négociable** : `spring-boot-starter-webmvc`, `spring-boot-starter-validation`, `spring-boot-starter-actuator`, `spring-boot-starter-data-jpa` + `spring-boot-starter-flyway` + `flyway-database-postgresql` + `postgresql`, `spring-boot-starter-security` + `spring-boot-starter-security-oauth2-resource-server`, ArchUnit (test).
 
-**Modules optionnels** : `spring-boot-starter-kafka` (si l'outbox in-box ne suffit plus), Resilience4j (`ExternalRateProvider`), `spring-boot-starter-opentelemetry`, `spring-boot-starter-data-redis`.
+**Modules optionnels** : `spring-boot-starter-kafka` (si l'outbox in-box ne suffit plus), Resilience4j (`ExternalRateProvider`), `spring-boot-starter-opentelemetry`, Redis optionnel plus tard (`RateCache` distribué — défaut in-memory aujourd'hui).
 
 **Tests** : `net.jqwik:jqwik`, `org.pitest:pitest-maven`, Testcontainers — voir aussi `.cursor/rules/testing-rules.mdc`.
 
@@ -527,7 +527,7 @@ docker compose --profile sandbox up -d --build
 # credentials / curls : config/sandbox-ready.txt
 ```
 
-**Production :** image Hub + `with-app` (ou K8s) avec profil `normal`, issuer OIDC **externe**, JWT always-on ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)). Le fat JAR serveur reste une échappatoire hors conteneur (**liability moindre** que l'image). Redémarrer l'app (`compose restart`) sans perdre les données = volumes Postgres/Redis nommés.
+**Production :** image Hub + `with-app` (ou K8s) avec profil `normal`, issuer OIDC **externe**, JWT always-on ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)). Le fat JAR serveur reste une échappatoire hors conteneur (**liability moindre** que l'image). Redémarrer l'app (`compose restart`) sans perdre les données = volume Postgres nommé.
 
 Voir [ADR-012](adr/ADR-012-docker-distribution.md), [ADR-015](adr/ADR-015-operational-model.md), [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 

@@ -12,7 +12,7 @@ This guide is written for a CTO or platform lead evaluating FinLedger as a
 
 | FinLedger provides | You provide |
 |--------------------|-------------|
-| Append-only double-entry journal, multi-tenant RLS, idempotency, outbox | Postgres (+ Redis for current cache/session needs) |
+| Append-only double-entry journal, multi-tenant RLS, idempotency, outbox | Postgres |
 | REST `/api/v1` + OpenAPI | OIDC IdP **or** short-lived JWTs from FinLedger’s in-box issuer ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)) |
 | Optional fraud/rails/FX adapters behind ports | Your payment rails, secrets store, broker (optional) |
 | Compose sandbox for eval | Network, TLS termination, observability backend |

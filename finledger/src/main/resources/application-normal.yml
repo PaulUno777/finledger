@@ -1,5 +1,5 @@
-# Default non-sandbox runtime (ADR-016). Local IDE defaults against Compose Postgres/Redis.
-# Production: override via env (DB_URL, REDIS_*, OIDC issuer) — do not commit secrets.
+# Default non-sandbox runtime (ADR-016). Local IDE defaults against Compose Postgres.
+# Production: override via env (DB_URL, OIDC issuer) — do not commit secrets.
 
 spring:
 
@@ -16,11 +16,6 @@ spring:
     enabled: true
     user: ${SPRING_FLYWAY_USER:finledger}
     password: ${SPRING_FLYWAY_PASSWORD:finledger}
-
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
 
 finledger:
   security:

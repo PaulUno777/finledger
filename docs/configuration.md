@@ -134,13 +134,13 @@ In containers, mount overrides at `/workspace/config/` (image default
 Local Compose:
 
 ```bash
-# Postgres + Redis only (default)
+# Postgres only (default)
 docker compose up -d
 
 # Sandbox eval (no OIDC) — dumps curls to ./config/sandbox-ready.txt
 docker compose --profile sandbox up -d --build
 
-# Full stack with OIDC enforced (build image + app). Put OIDC issuer in `.env` first.
+# Full stack with OIDC (build image + app). Put OIDC issuer in `.env` first.
 docker compose --profile with-app up -d --build
 
 # Optional Prometheus + Grafana (see deploy/observability/)
@@ -170,9 +170,6 @@ See [ADR-013](adr/ADR-013-observability.md).
 | `SPRING_DATASOURCE_PASSWORD` | DB password |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | Datasource aliases (Compose / prod) |
 | `SPRING_FLYWAY_USER` / `SPRING_FLYWAY_PASSWORD` | Flyway credentials (often superuser) |
-| `SPRING_DATA_REDIS_HOST` | Redis host |
-| `SPRING_DATA_REDIS_PORT` | Redis port |
-| `REDIS_HOST` / `REDIS_PORT` | Redis aliases |
 | `SPRING_CONFIG_ADDITIONAL_LOCATION` | Optional extra config locations |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (`issuer=external`) |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | JWKS URI alternative to issuer |
@@ -191,8 +188,7 @@ See [ADR-013](adr/ADR-013-observability.md).
 | `JAVA_OPTS` | Extra JVM flags for the container entrypoint |
 
 Production (`FINLEDGER_ENV=production`, profile `normal`) expects secrets via env
-(`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, OIDC URI) —
-never commit real values.
+(`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, OIDC URI) — never commit real values.
 
 ## First boot without a tenant
 
