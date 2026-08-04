@@ -47,8 +47,8 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-151 | Runnable security modes (eval / CI / prod) | `feature/FL-151-security-modes` | done |
 | FL-152 | Ops CLI + `finledger.env.example` (Compose wrappers, doctor, restart hints) | `feature/FL-152-ops-cli-env-example` | done |
 | FL-154 | ADR-016 + docs (`sandbox`/`normal`, issuer model) | `feature/FL-154-adr-016-runtime-profiles` | done (docs on develop) |
-| FL-155 | Sandbox ephemeral JWT + remove ADR-014 modes / collapse profiles | `feature/FL-155-sandbox-jwt-issuer` | in progress |
-| FL-156 | Persistent internal issuer for normal/CI (durable secrets) | `feature/FL-156-internal-jwt-issuer` | pending |
+| FL-155 | Sandbox ephemeral JWT + remove ADR-014 modes / collapse profiles | `feature/FL-155-sandbox-jwt-issuer` | done |
+| FL-156 | Persistent internal issuer for normal/CI (durable secrets) | `feature/FL-156-internal-jwt-issuer` | in progress |
 | FL-157 | Richer sandbox seed scenarios + smarter `sandbox init` launcher | `feature/FL-157-sandbox-scenarios` | pending (after FL-156) |
 | FL-153 | API CLI UX (tenant header, health/ready, dry-run, silent refresh) | `feature/FL-153-api-cli-ux` | pending (after FL-156) |
 | FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | pending |
@@ -62,9 +62,8 @@ copy-paste [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md) instructions as if a
 fintech CTO were integrating FinLedger into their stack. Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 Auth target: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 
-**Gate note:** FL-155 (sandbox JWT + full mode/profile cleanup) is on this branch —
-stop for human PR into `develop`. Do **not** start FL-156 until FL-155 is merged.
-FL-157 (scenario packs) and FL-153 wait for FL-156.
+**Gate note:** FL-156 (persistent internal issuer) is on this branch — stop for human
+PR into `develop`. Do **not** start FL-157 or FL-153 until FL-156 is merged.
 
 ## Phase gate checklist
 

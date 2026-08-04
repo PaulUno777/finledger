@@ -16,7 +16,7 @@ import com.pauluno.finledger.infrastructure.security.LedgerAuthorities;
 import com.pauluno.finledger.infrastructure.security.TenantClaimAuthorizationFilter;
 
 /**
- * JWT resource server backed by the in-box ephemeral issuer (sandbox / FL-155).
+ * JWT resource server backed by the in-box issuer (sandbox ephemeral or normal persistent).
  */
 @Configuration
 @EnableWebSecurity

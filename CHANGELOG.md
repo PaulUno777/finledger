@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Persistent internal JWT issuer (FL-156): durable PKCS#8 signing key + tenant-bound
+  `clients[]` for `normal`+`issuer=internal`; sandbox stays ephemeral; shared
+  `InternalJwtIssuer` mint/JWKS surface ([auth-integration.md](docs/auth-integration.md),
+  [ADR-016](docs/adr/ADR-016-runtime-profiles-jwt-issuer.md))
 - Sandbox ephemeral JWT issuer + auth cleanup (FL-155): in-box RSA mint (`POST /api/v1/auth/token` + JWKS), max TTL, profiles `sandbox`|`normal` only, removed ADR-014 modes (`enforced`/`static-token`/`disabled`) and `local`/`prod`/`test` Spring profiles, CLI `auth token` + claim/BFF docs ([auth-integration.md](docs/auth-integration.md), [ADR-016](docs/adr/ADR-016-runtime-profiles-jwt-issuer.md))
 - Developer integration guide rewrite (FL-155): copy-paste sandbox + normal paths, auth contract, ops CLI, production checklist ([INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md))
 - Roadmap FL-157: richer sandbox scenario packs + `sandbox init` launcher (plan §14); keep `SandboxIds` as `simple` pack UUID contract

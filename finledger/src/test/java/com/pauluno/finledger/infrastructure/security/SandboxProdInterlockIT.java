@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;
@@ -22,12 +23,30 @@ import com.pauluno.finledger.security.policy.RuntimeSecurityViolationException;
 @SuppressWarnings("resource")
 class SandboxProdInterlockIT {
 
+    private static final String[] SYS_PROPS = {
+            "spring.profiles.active",
+            "finledger.security.issuer",
+            "finledger.env",
+            "finledger.sandbox.dump-path",
+            "finledger.sandbox.client-secret",
+            "server.port",
+            "management.server.port"
+    };
+
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(
             DockerImageName.parse("postgres:17-alpine"))
             .withDatabaseName("finledger")
             .withUsername("finledger")
             .withPassword("finledger");
+
+    @AfterEach
+    void clearSystemProperties() {
+        for (String key : SYS_PROPS) {
+            System.clearProperty(key);
+        }
+    }
+
     @Test
     void should_fail_startup_when_sandbox_with_production_env() throws Exception {
         Map<String, Object> props = new HashMap<>();
@@ -42,20 +61,22 @@ class SandboxProdInterlockIT {
         props.put("spring.jpa.hibernate.ddl-auto", "validate");
         props.put("spring.flyway.enabled", "true");
         props.put("finledger.outbox.poll-interval-ms", "3600000");
-        props.put("finledger.security.issuer", "internal");
-        props.put("finledger.env", "production");
-        props.put("spring.profiles.active", "sandbox");
-        props.put("server.port", "0");
-        props.put("management.server.port", "0");
-        props.put("finledger.sandbox.dump-path",
+
+        System.setProperty("spring.profiles.active", "sandbox");
+        System.setProperty("finledger.security.issuer", "internal");
+        System.setProperty("finledger.env", "production");
+        System.setProperty("server.port", "0");
+        System.setProperty("management.server.port", "0");
+        System.setProperty(
+                "finledger.sandbox.dump-path",
                 java.nio.file.Files.createTempFile("sandbox-ready-", ".txt").toString());
-        props.put("finledger.sandbox.client-secret", "it-secret");
+        System.setProperty("finledger.sandbox.client-secret", "it-secret");
 
         SpringApplication app = new SpringApplication(FinledgerApplication.class);
         app.setDefaultProperties(props);
         app.setWebApplicationType(WebApplicationType.SERVLET);
 
         assertThatThrownBy(app::run)
-                .hasRootCauseInstanceOf(RuntimeSecurityViolationException.class);
+                .isInstanceOf(RuntimeSecurityViolationException.class);
     }
 }

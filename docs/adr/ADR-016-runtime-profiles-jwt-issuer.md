@@ -117,17 +117,24 @@ mapped during FL-154–FL-156:
   sandbox vs normal story; gateway/BFF still works via minted JWTs.
 - Trade-off: sandbox and IdP-less CI need the in-box issuer (FL-155 / FL-156);
   CLI must learn token refresh (FL-153 after auth land).
-- **Implementation:** FL-154 (docs) → FL-155 (**sandbox ephemeral issuer + removal of
+  - **Implementation:** FL-154 (docs) → FL-155 (**sandbox ephemeral issuer + removal of
   ADR-014 modes and `local`/`prod`/`test` Spring profiles** — profile axis is only
-  `sandbox`|`normal`) → FL-156 (persistent internal issuer for normal/CI).
+  `sandbox`|`normal`) → FL-156 (**persistent internal issuer**: durable PEM +
+  tenant-bound clients for normal/CI).
   See [auth-integration.md](../auth-integration.md).
 
 ## Explicitly not in the ADR/docs pass
 
-- Persistent internal issuer for normal/CI (FL-156)
 - Embedding Keycloak
 - Dropping Hub releases or the JAR escape hatch
 - Rewriting the CLI in another language
+- Richer sandbox scenario packs (FL-157)
+
+## FL-156 delivery note
+
+Persistent internal issuer for `normal`/CI: durable PKCS#8 signing key +
+**client-bound** `tenant_id` list (`finledger.security.internal.clients[]`). Sandbox
+remains ephemeral keys + `SandboxIds`.
 
 ## References
 
