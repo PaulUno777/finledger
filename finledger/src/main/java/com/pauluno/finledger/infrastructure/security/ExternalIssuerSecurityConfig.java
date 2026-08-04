@@ -4,31 +4,25 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
-import com.pauluno.finledger.application.port.out.SecretsProvider;
 
 /**
- * Shared bearer token mode for CI / early integration (FL-151).
+ * JWT resource server for external IdP issuer (default for profile {@code normal}).
  */
 @Configuration
 @EnableWebSecurity
-@ConditionalOnProperty(prefix = "finledger.security", name = "mode", havingValue = "static-token")
-public class StaticTokenSecurityConfig {
+@ConditionalOnProperty(prefix = "finledger.security", name = "issuer", havingValue = "external", matchIfMissing = true)
+public class ExternalIssuerSecurityConfig {
 
     @Bean
-    SecurityFilterChain staticTokenSecurityFilterChain(
-            HttpSecurity http,
-            SecretsProvider secretsProvider,
-            StaticTokenHolder staticTokenHolder
-    ) throws Exception {
-        String token = staticTokenHolder.resolve(secretsProvider);
-        http
+    SecurityFilterChain externalIssuerSecurityFilterChain(HttpSecurity http) throws Exception {
+        return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
@@ -49,14 +43,10 @@ public class StaticTokenSecurityConfig {
                                 LedgerAuthorities.SCOPE_LEDGER_ADMIN)
                         .anyRequest().authenticated()
                 )
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
-                .addFilterBefore(
-                        new StaticTokenAuthenticationFilter(token),
-                        UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(
-                        new TenantClaimAuthorizationFilter(TenantClaimAuthorizationFilter.TenantBindingMode.HEADER),
-                        UsernamePasswordAuthenticationFilter.class);
-        return http.build();
+                .addFilterAfter(new TenantClaimAuthorizationFilter(), BearerTokenAuthenticationFilter.class)
+                .build();
     }
 }

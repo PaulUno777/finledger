@@ -1,13 +1,19 @@
-# Sandbox eval profile (FL-151) — NEVER combine with prod.
-# Security mode disabled; seeds sandbox tenant + demo accounts on boot.
+# Sandbox eval profile (ADR-016) — NEVER combine with FINLEDGER_ENV=production.
+# JWT always on via in-box ephemeral issuer.
 
 finledger:
   env: local
   security:
-    mode: disabled
+    issuer: internal
+    max-token-ttl: ${FINLEDGER_SECURITY_MAX_TOKEN_TTL:15m}
+    internal:
+      issuer-uri: ${FINLEDGER_INTERNAL_ISSUER_URI:http://localhost:8080/internal/sandbox}
   sandbox:
     dump-path: ${FINLEDGER_SANDBOX_DUMP_PATH:config/sandbox-ready.txt}
     base-url: ${FINLEDGER_SANDBOX_BASE_URL:http://localhost:8080}
+    client-id: ${FINLEDGER_SANDBOX_CLIENT_ID:sandbox}
+    # Leave blank to generate a high-entropy secret at boot (written to dump only).
+    client-secret: ${FINLEDGER_SANDBOX_CLIENT_SECRET:}
 
 spring:
 

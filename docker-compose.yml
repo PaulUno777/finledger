@@ -2,8 +2,8 @@
 # App config layers: image/defaults → optional file mount → env vars.
 #
 #   docker compose up -d
-#   docker compose --profile sandbox up -d --build    # no OIDC; read config/sandbox-ready.txt
-#   docker compose --profile with-app up -d --build   # needs OIDC in .env (enforced)
+#   docker compose --profile sandbox up -d --build    # in-box JWT; read config/sandbox-ready.txt
+#   docker compose --profile with-app up -d --build   # needs OIDC in .env (issuer=external)
 #   docker compose --profile with-app --profile observability up -d --build
 #
 # Dev credentials below are for local evaluation only — never reuse in production.
@@ -70,9 +70,10 @@ services:
       - path: .env
         required: false
     environment:
-      SPRING_PROFILES_ACTIVE: prod
+      SPRING_PROFILES_ACTIVE: normal
       FINLEDGER_ENV: production
-      FINLEDGER_SECURITY_MODE: enforced
+      FINLEDGER_SECURITY_ISSUER: external
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0.1"
       DB_URL: jdbc:postgresql://postgres:5432/finledger
       DB_USERNAME: finledger_app
       DB_PASSWORD: finledger
@@ -84,7 +85,7 @@ services:
       - ./config:/workspace/config:ro
 
   # Start with: docker compose --profile sandbox up -d --build
-  # Never sets prod. Credentials dumped to ./config/sandbox-ready.txt (gitignored).
+  # Never sets prod. Mint credentials dumped to ./config/sandbox-ready.txt (gitignored).
   app-sandbox:
     profiles: ["sandbox"]
     build: .
@@ -101,7 +102,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: sandbox
       FINLEDGER_ENV: local
-      FINLEDGER_SECURITY_MODE: disabled
+      FINLEDGER_SECURITY_ISSUER: internal
       FINLEDGER_SANDBOX_DUMP_PATH: /workspace/config/sandbox-ready.txt
       FINLEDGER_SANDBOX_BASE_URL: http://localhost:8080
       DB_URL: jdbc:postgresql://postgres:5432/finledger

@@ -11,11 +11,11 @@ import org.springframework.security.oauth2.jwt.JwtDecoders;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
 /**
- * Builds a {@link JwtDecoder} from issuer-uri or jwk-set-uri, always wrapped with the
- * RS256/ES256 algorithm allowlist. Only active in {@code enforced} mode (FL-151).
+ * External IdP {@link JwtDecoder} (issuer-uri or jwk-set-uri), RS256/ES256 allowlist.
+ * Internal issuer uses {@link com.pauluno.finledger.infrastructure.security.internal.InternalIssuerConfiguration}.
  */
 @Configuration
-@ConditionalOnProperty(prefix = "finledger.security", name = "mode", havingValue = "enforced", matchIfMissing = true)
+@ConditionalOnProperty(prefix = "finledger.security", name = "issuer", havingValue = "external", matchIfMissing = true)
 public class JwtDecoderConfig {
 
     @Bean
