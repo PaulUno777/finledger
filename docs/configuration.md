@@ -23,53 +23,54 @@ docker compose --profile sandbox up -d --build
 # Or: ./bin/finledger-cli up --profile sandbox --build
 # copy-paste curls from config/sandbox-ready.txt or app logs
 
-# Or OIDC-enforced local run:
+# Or normal profile + external IdP:
 docker compose up -d
+export SPRING_PROFILES_ACTIVE=normal
 export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
 ./mvnw -pl finledger spring-boot:run
 ```
 
 CTO / production integration outline: [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md)
 (finalized in FL-190). Ops model: [ADR-015](adr/ADR-015-operational-model.md).
-Target auth model: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
+Auth model: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
+**Who issues tokens / claim contract / BFF:** [auth-integration.md](auth-integration.md).
 
-`application-local.yml` / `application-test.yml` point at Compose Postgres/Redis.
-Flyway migrates as superuser `finledger`; the app connects as non-superuser
+Profile files: `application-sandbox.yml` / `application-normal.yml` (localhost defaults
+for IDE). Flyway migrates as superuser `finledger`; the app connects as non-superuser
 `finledger_app` / `finledger` so Postgres FORCE RLS is enforced (superusers bypass RLS).
 Those credentials are **dev-only**.
 
-### Runtime profiles & JWT (ADR-016 — target)
+### Runtime profiles & JWT (ADR-016)
 
 | Profile | Purpose | Issuer |
 |---------|---------|--------|
-| `sandbox` | Seeded eval / local / CI | In-box issuer; **ephemeral signing keys per boot** |
-| `normal` | Real deployments | External OIDC (default) **or** in-box issuer with rotatable secrets |
+| `sandbox` | Seeded eval | In-box issuer; **ephemeral signing keys per boot** |
+| `normal` | Real deployments (default) | External OIDC (default) **or** in-box issuer (FL-156 durable secrets) |
 
 **Invariants:** JWT verification always on (RS256/ES256, `exp`, ledger max TTL, `tenant_id` +
-scopes). No auth-off / `trust_edge`. Long-lived `client_secret` is for **minting only**, never
-the API Bearer. mTLS is optional **transport**, never a JWT substitute.
+scopes). No auth-off / `trust_edge` / `finledger.security.mode`. Long-lived `client_secret`
+is for **minting only**, never the API Bearer.
 
-Implementation: FL-154 (aliases/policy) → FL-155 (sandbox issuer) → FL-156 (internal issuer;
-remove eternal static-token Bearer). **Until then, runtime still follows ADR-014 below.**
+| Property | Env | Notes |
+|----------|-----|-------|
+| `spring.profiles.active` | `SPRING_PROFILES_ACTIVE` | `sandbox` \| `normal` only |
+| `finledger.security.issuer` | `FINLEDGER_SECURITY_ISSUER` | `external` (default) \| `internal` |
+| `finledger.security.max-token-ttl` | `FINLEDGER_SECURITY_MAX_TOKEN_TTL` | Default `15m` |
+| `finledger.sandbox.client-id` / `client-secret` | `FINLEDGER_SANDBOX_CLIENT_ID` / `_SECRET` | Mint credentials; blank secret → generated at boot |
 
-### Security modes (FL-151 / ADR-014 — current runtime)
+Sandbox Compose: `SPRING_PROFILES_ACTIVE=sandbox` → `issuer=internal`. Mint:
+`POST /api/v1/auth/token` or `./bin/finledger-cli auth token`.
 
-| Mode | Property | Use |
-|------|----------|-----|
-| `enforced` (default) | `finledger.security.mode=enforced` | Production / OIDC (ADR-008) → maps to `normal` + external |
-| `static-token` | `static-token` + `FINLEDGER_STATIC_TOKEN` | CI today → will become short-lived mint (FL-156) |
-| `disabled` | `disabled` | Sandbox eval today → **removed** after FL-155 (use sandbox JWTs) |
-
-**Interlock:** boot fails if mode ≠ `enforced` when `FINLEDGER_ENV=production` or
-profiles include `prod`.
+**Interlocks:** boot fails if profile `sandbox` with `FINLEDGER_ENV=production|prod`,
+or if `sandbox` and `normal` are both active.
 
 CLI (local YAML only — restart app after changes):
 
 ```bash
-./bin/finledger-cli config init --mode disabled
-./bin/finledger-cli config set security.mode static-token
+./bin/finledger-cli config init --profile sandbox
+./bin/finledger-cli config set security.issuer external
 ./bin/finledger-cli config validate
-./bin/finledger-cli restart   # Compose restart; volumes keep data
+./bin/finledger-cli restart
 ```
 
 ### Ops CLI (FL-152 / ADR-015)
@@ -82,12 +83,13 @@ interactive REPL. Prod: colocate `finledger-cli.jar` with the script, or set `FI
 
 | Command | Purpose |
 |---------|---------|
-| `doctor` | Docker / compose file / `.env` / security-mode checks + optional health probe |
+| `doctor` | Docker / compose file / `.env` / profile interlock + optional health probe |
 | `status` | `compose ps` + `GET …/actuator/health` |
 | `up [--profile sandbox\|with-app] [--build]` | `docker compose up -d` |
 | `down` | `docker compose down` (no `-v` — preserves Postgres data) |
 | `restart [--service app-sandbox\|app]` | Restart app container |
 | `logs [-f] [--service …]` | Compose logs |
+| `auth token` | Mint sandbox/internal JWT only — **not** for normal+external IdP |
 
 ### AuthN / AuthZ (JWT — always)
 
@@ -162,25 +164,25 @@ See [ADR-013](adr/ADR-013-observability.md).
 
 | Variable | Purpose |
 |----------|---------|
-| `SPRING_PROFILES_ACTIVE` | e.g. `test`, `prod` |
+| `SPRING_PROFILES_ACTIVE` | `sandbox` \| `normal` |
 | `SPRING_DATASOURCE_URL` | JDBC URL |
 | `SPRING_DATASOURCE_USERNAME` | DB user |
 | `SPRING_DATASOURCE_PASSWORD` | DB password |
-| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | Prod-profile aliases for datasource |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | Datasource aliases (Compose / prod) |
 | `SPRING_FLYWAY_USER` / `SPRING_FLYWAY_PASSWORD` | Flyway credentials (often superuser) |
 | `SPRING_DATA_REDIS_HOST` | Redis host |
 | `SPRING_DATA_REDIS_PORT` | Redis port |
-| `REDIS_HOST` / `REDIS_PORT` | Prod-profile aliases for Redis |
+| `REDIS_HOST` / `REDIS_PORT` | Redis aliases |
 | `SPRING_CONFIG_ADDITIONAL_LOCATION` | Optional extra config locations |
-| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (preferred; `enforced` mode) |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (`issuer=external`) |
 | `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | JWKS URI alternative to issuer |
-| `FINLEDGER_ENV` | `local` (default) or `production` — production forbids non-enforced modes |
-| `FINLEDGER_SECURITY_MODE` | `enforced` \| `static-token` \| `disabled` (ADR-014) |
-| `FINLEDGER_STATIC_TOKEN` | Shared Bearer when `mode=static-token` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional OTLP traces endpoint (maps to `management.opentelemetry.tracing.export.otlp.endpoint`) |
+| `FINLEDGER_ENV` | `local` (default) or `production` — production forbids profile `sandbox` |
+| `FINLEDGER_SECURITY_ISSUER` | `external` \| `internal` |
+| `FINLEDGER_SECURITY_MAX_TOKEN_TTL` | Ledger max JWT lifetime (default `15m`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional OTLP traces endpoint |
 | `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET` | HMAC secret for inbound rail settlement webhooks |
 | `FINLEDGER_BASE_URL` | CLI only — FinLedger API base URL (default `http://localhost:8080`) |
-| `FINLEDGER_TOKEN` | CLI only — Bearer JWT for `/api/v1` (needs `ledger:admin` to create tenants) |
+| `FINLEDGER_TOKEN` | CLI only — Bearer JWT for `/api/v1` |
 | `FINLEDGER_MANAGEMENT_URL` | CLI only — actuator base (default `http://localhost:8081`) |
 | `FINLEDGER_CLI_JAR` | CLI launcher — absolute path to shaded jar (prod) |
 | `FINLEDGER_FRAUD_ENABLED` | Enable in-box rule-based risk check (`true` / default `false`) |
@@ -188,8 +190,9 @@ See [ADR-013](adr/ADR-013-observability.md).
 | `MANAGEMENT_SERVER_PORT` | Actuator port (image default `8081`) |
 | `JAVA_OPTS` | Extra JVM flags for the container entrypoint |
 
-Production profile (`application-prod.yml`) expects secrets via env (`DB_URL`,
-`DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`) — never commit real values.
+Production (`FINLEDGER_ENV=production`, profile `normal`) expects secrets via env
+(`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, OIDC URI) —
+never commit real values.
 
 ## First boot without a tenant
 

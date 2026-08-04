@@ -29,21 +29,21 @@ cp finledger.env.example .env
 # or: docker compose --profile sandbox up -d --build
 ./bin/finledger-cli doctor
 ./bin/finledger-cli                 # interactive REPL
-# read config/sandbox-ready.txt — post a journal (today: ADR-014 sandbox;
-# target: short-lived JWT from in-box issuer — ADR-016 / FL-155)
+# read config/sandbox-ready.txt — mint JWT + post journal (FL-155)
 ```
 
-**Runtime profiles (ADR-016):** `sandbox` (seeded eval) vs `normal` (real deploy).
-JWT verification is **always on** — no auth-off / trust_edge. Until FL-155/156 ship,
-legacy ADR-014 modes still run; never use `disabled` / `static-token` with `prod` /
-`FINLEDGER_ENV=production`.
+**Runtime profiles (ADR-016):** `sandbox` (seeded eval, in-box ephemeral JWT issuer) vs
+`normal` (real deploy). JWT verification is **always on** — no auth-off / trust_edge /
+security modes. Who issues tokens: [auth-integration.md](auth-integration.md).
+Never combine profile `sandbox` with `FINLEDGER_ENV=production`.
 
 ## 3. Production integration checklist
 
 1. **Image (canonical):** pull `${DOCKERHUB_USERNAME}/finledger:<semver>` or build from tag.
    Server fat JAR on GitHub Release is an **escape hatch with weaker liability** than the image.
 2. **Profile:** `normal` + issuer **external** OIDC (issuer/JWKS). Prefer not to run production
-   on the in-box issuer alone.
+   on the in-box issuer alone. Your IdP/BFF puts FinLedger claims on the JWT; FinLedger only
+   verifies — see [auth-integration.md](auth-integration.md).
 3. **Scopes:** `ledger:read` | `ledger:write` | `ledger:admin`; claim `tenant_id`; enforce `exp`
    + ledger max TTL.
 4. **Tenants:** create via CLI or `POST /api/v1/tenants` (admin).
@@ -67,8 +67,9 @@ FinLedger (Docker Hub image / K8s)
 Your Postgres (RLS enabled)
 ```
 
-If auth terminates at your gateway/BFF: still mint or forward a **verifiable JWT** to
-FinLedger — do not expect passthrough trust.
+If auth terminates at your gateway/BFF: still **pass through** or **token-exchange** a
+verifiable JWT to FinLedger — never strip auth and call the ledger open
+([auth-integration.md](auth-integration.md)).
 
 Optional adapters: FX provider, rail PSP, Vault, Kafka outbox publisher, fraud rules.
 
@@ -92,7 +93,7 @@ Optional adapters: FX provider, rail PSP, Vault, Kafka outbox publisher, fraud r
 
 ## 7. Next steps after eval
 
-- Merge / validate ops CLI (FL-152), then auth land FL-155 → FL-156 ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md))
+- Auth land: FL-155 (sandbox JWT + mode cleanup) → FL-156 (persistent internal issuer for normal/CI)
 - API CLI UX / silent refresh (FL-153, after auth)
 - Contract tests / `/sdk-reference/` patterns (FL-160)
 - Hardening / load / chaos (FL-170)
@@ -105,6 +106,7 @@ Optional adapters: FX provider, rail PSP, Vault, Kafka outbox publisher, fraud r
 | Product rules | [PLAN_LEDGER_FINTECH.md](PLAN_LEDGER_FINTECH.md) |
 | Ops model | [ADR-015](adr/ADR-015-operational-model.md) |
 | Runtime profiles & JWT issuer | [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md) |
+| Auth integration (claims, BFF, CLI mint) | [auth-integration.md](auth-integration.md) |
 | Config keys | [configuration.md](configuration.md) |
 | Legacy security modes (until FL-156) | [ADR-014](adr/ADR-014-security-modes.md) |
 | Docker | [ADR-012](adr/ADR-012-docker-distribution.md) |

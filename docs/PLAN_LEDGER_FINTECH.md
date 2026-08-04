@@ -504,7 +504,7 @@ Ni "tout en variables d'environnement" (illisible à grande échelle) ni "wizard
 3. **Variables d'environnement (relaxed binding)** — pour les orchestrateurs qui préfèrent l'injection d'env vars (ConfigMap/Secret Kubernetes, task defs ECS) à un fichier monté ; toute clé YAML est overridable via son équivalent `SCREAMING_SNAKE_CASE`. Fichier de référence **`finledger.env.example`** à la racine : toutes les options documentées avec défauts et descriptions ; `cp finledger.env.example .env` pour démarrer.
 4. **Secrets jamais dans le fichier de config** — toujours via le port `SecretsProvider` (§2.3, §11).
 5. **Premier lancement sans tenant configuré** : le service démarre normalement (jamais de blocage), log un message explicite pointant vers la CLI (§16) ou `POST /api/v1/tenants` pour créer le premier tenant — pas de wizard qui empêcherait le conteneur de passer `healthy`.
-6. **Profils runtime & JWT (ADR-016)** : `sandbox` (seed + émetteur interne, clés éphémères) vs `normal` (IdP externe par défaut, ou émetteur interne). Vérification JWT **toujours** active — pas d'auth-off. Jusqu'à FL-155/156, le runtime conserve encore les modes ADR-014 (`enforced` / `static-token` / `disabled`) avec aliases de transition.
+6. **Profils runtime & JWT (ADR-016)** : `sandbox` (seed + émetteur interne, clés éphémères) vs `normal` (IdP externe par défaut, ou émetteur interne). Vérification JWT **toujours** active — pas d'auth-off, pas de modes `enforced`/`static-token`/`disabled`.
 7. **Livraison** : image Hub = artefact prod canonique ; fat JAR = échappatoire documentée (garantie de liability **moindre**) ; clone + Compose = eval.
 
 ### 18.2 Pipeline GitHub Actions
