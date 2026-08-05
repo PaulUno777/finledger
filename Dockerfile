@@ -1,5 +1,6 @@
 # Multi-stage image for FinLedger server (plan §18.3).
 # Tests run in CI before this build; package skips tests here for a lean image build.
+# BuildKit cache mount keeps ~/.m2 across rebuilds; go-offline layer only invalidates on POM changes.
 
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /workspace
@@ -13,10 +14,15 @@ COPY finledger-cli/pom.xml finledger-cli/
 
 RUN chmod +x mvnw
 
+# Resolve deps when POMs change only (BuildKit cache persists /root/.m2).
+RUN --mount=type=cache,target=/root/.m2 \
+	./mvnw -B -pl finledger -am dependency:go-offline -DskipTests
+
 COPY finledger-security-policy/src finledger-security-policy/src
 COPY finledger/src finledger/src
 
-RUN ./mvnw -B -pl finledger -am package -DskipTests \
+RUN --mount=type=cache,target=/root/.m2 \
+	./mvnw -B -pl finledger -am package -DskipTests \
 	&& java -Djarmode=tools -jar finledger/target/finledger-*.jar extract \
 		--layers --destination /extracted
 
