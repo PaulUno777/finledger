@@ -30,7 +30,7 @@ export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/rea
 ./mvnw -pl finledger spring-boot:run
 ```
 
-CTO / production integration outline: [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md)
+CTO / production integration outline: [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)
 (developer-focused; K8s go-live finalized in FL-190). Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 Auth model: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 **Who issues tokens / claim contract / BFF:** [auth-integration.md](auth-integration.md).
@@ -61,6 +61,8 @@ is for **minting only**, never the API Bearer.
 | `finledger.security.internal.issuer-uri` | `FINLEDGER_INTERNAL_ISSUER_URI` | Distinct URI for normal+internal (default `http://localhost:8080/internal`) |
 | `finledger.security.internal.signing-key-pem` / `signing-key-path` | `FINLEDGER_INTERNAL_SIGNING_KEY_PEM` / `_PATH` | PKCS#8 PEM; **required** for normal+internal (never auto-generated) |
 | `finledger.security.internal.clients[]` | `FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_*` | Tenant-bound machine clients (`client-id`, `client-secret`, `tenant-id`, optional `scopes`) |
+| `finledger.platform.bootstrap-secret` | `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET` | One-shot cold-start (FL-158); blank → bootstrap endpoint 404 |
+| `finledger.platform.bootstrap-token-ttl` | `FINLEDGER_PLATFORM_BOOTSTRAP_TOKEN_TTL` | Cap by max-token-ttl; default `15m` |
 
 Sandbox Compose: `SPRING_PROFILES_ACTIVE=sandbox` → `issuer=internal` (ephemeral keys). Mint:
 `POST /api/v1/auth/token` or `./bin/finledger-cli auth token` (optional `--tenant-id` for any
@@ -68,7 +70,12 @@ seeded tenant). Scenario packs: `./bin/finledger-cli sandbox init --scenario …
 On normal+internal, mint body `tenant_id` → HTTP 400 `tenant_id_not_allowed`.
 
 **Normal + internal (IdP-less CI):** durable RSA + at least one client bound to a
-`tenant_id`. Boot fails if the signing key or clients are missing. Generate a local key:
+`tenant_id`. Boot fails if the signing key or clients are missing. Cold-start from an
+empty DB: set `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET`, run
+`./bin/finledger-cli platform bootstrap`, then `tenant create --id <bound-uuid>`
+(ADR-016 FL-158). Leave the bootstrap secret unset in production (`issuer=external`).
+
+Generate a local key:
 
 ```bash
 openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out config/internal-signing.pem
@@ -101,6 +108,7 @@ interactive REPL. Prod: colocate `finledger-cli.jar` with the script, or set `FI
 | `up [--profile sandbox\|with-app] [--build]` | `docker compose up -d` |
 | `down` | `docker compose down` (no `-v` — preserves Postgres data) |
 | `sandbox init [--scenario …]` | Write `FINLEDGER_SANDBOX_SCENARIO` into `.env` (no Compose start) |
+| `platform bootstrap` | One-shot `platform:admin` JWT (FL-158; normal+internal) |
 | `restart [--service app-sandbox\|app]` | Restart app container |
 | `logs [-f] [--service …]` | Compose logs |
 | `auth token [--tenant-id]` | Mint sandbox/internal JWT only — **not** for normal+external IdP |
@@ -111,9 +119,9 @@ interactive REPL. Prod: colocate `finledger-cli.jar` with the script, or set `FI
 |------|----------|
 | Algorithms | JWT `alg` must be `RS256` or `ES256` |
 | Lifetime | `exp` required; ledger-enforced max TTL (ADR-016 / FL-154+) |
-| Scopes | `ledger:read`, `ledger:write`, `ledger:admin` |
-| Tenant binding | Claim `tenant_id` (UUID) must match `/api/v1/tenants/{tenantId}/…` |
-| Create tenant | `POST /api/v1/tenants` requires `ledger:admin` |
+| Scopes | `ledger:read`, `ledger:write`, `ledger:admin`; control-plane `platform:admin` (FL-158) |
+| Tenant binding | Claim `tenant_id` (UUID) must match `/api/v1/tenants/{tenantId}/…` (skipped for create + `/platform/**`) |
+| Create tenant | `POST /api/v1/tenants` requires `ledger:admin` or `platform:admin`; optional `id` only with `platform:admin` |
 | Public | `/actuator/health`, `/actuator/prometheus`; settlement webhooks |
 | TLS | Terminate TLS 1.3 at the reverse proxy / load balancer in front of the service |
 | mTLS | Additive at the edge/mesh — does not replace JWT |

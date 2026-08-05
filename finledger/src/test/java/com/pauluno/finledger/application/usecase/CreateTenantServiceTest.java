@@ -99,6 +99,25 @@ class CreateTenantServiceTest {
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
+    @Test
+    void should_create_with_client_supplied_id() {
+        UUID chosen = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
+        CreateTenantResult result = service.execute(
+                new CreateTenantCommand("Chosen", "STANDALONE", null, chosen));
+        assertThat(result.tenantId()).isEqualTo(chosen);
+    }
+
+    @Test
+    void should_conflict_when_client_supplied_id_exists() {
+        UUID chosen = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        service.execute(new CreateTenantCommand("First", "STANDALONE", null, chosen));
+        assertThatThrownBy(() -> service.execute(
+                new CreateTenantCommand("Second", "STANDALONE", null, chosen)))
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting(ex -> ((BusinessRuleException) ex).code())
+                .isEqualTo("TENANT_ID_CONFLICT");
+    }
+
     private static final class InMemoryTenantRepository implements TenantRepository {
         private final Map<UUID, Tenant> tenants = new ConcurrentHashMap<>();
         private final Map<UUID, LinkedHashSet<UUID>> ancestorsByDescendant = new ConcurrentHashMap<>();

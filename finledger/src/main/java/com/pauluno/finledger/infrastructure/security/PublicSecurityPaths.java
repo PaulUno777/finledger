@@ -11,6 +11,7 @@ public final class PublicSecurityPaths {
             "/actuator/prometheus",
             "/api/v1/auth/jwks",
             "/api/v1/auth/token",
+            "/api/v1/platform/bootstrap",
             "/swagger-ui.html",
             "/swagger-ui/**",
             "/v3/api-docs",

@@ -129,7 +129,7 @@ public class GlobalExceptionHandler {
 
         HttpStatus status = switch (ex.code()) {
             case "INSUFFICIENT_FUNDS" -> HttpStatus.UNPROCESSABLE_CONTENT;
-            case "ACCOUNT_CLOSED" -> HttpStatus.CONFLICT;
+            case "ACCOUNT_CLOSED", "TENANT_ID_CONFLICT" -> HttpStatus.CONFLICT;
             case "WEBHOOK_SIGNATURE_INVALID" -> HttpStatus.UNAUTHORIZED;
             case "WEBHOOK_SECRET_MISSING" -> HttpStatus.SERVICE_UNAVAILABLE;
             default -> HttpStatus.UNPROCESSABLE_CONTENT;

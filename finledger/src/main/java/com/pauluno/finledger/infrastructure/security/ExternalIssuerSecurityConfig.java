@@ -30,7 +30,9 @@ public class ExternalIssuerSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants/*/rails/webhooks/settlement")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants")
-                        .hasAuthority(LedgerAuthorities.SCOPE_LEDGER_ADMIN)
+                        .hasAnyAuthority(
+                                LedgerAuthorities.SCOPE_LEDGER_ADMIN,
+                                LedgerAuthorities.SCOPE_PLATFORM_ADMIN)
                         .requestMatchers(HttpMethod.GET, "/api/**")
                         .hasAnyAuthority(
                                 LedgerAuthorities.SCOPE_LEDGER_READ,

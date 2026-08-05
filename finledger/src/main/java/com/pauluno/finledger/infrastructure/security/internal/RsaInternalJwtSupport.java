@@ -85,14 +85,46 @@ final class RsaInternalJwtSupport {
                     .claim(TenantClaimAuthorizationFilter.TENANT_ID_CLAIM, client.tenantId().toString())
                     .claim("scope", client.scopes())
                     .build();
-            SignedJWT jwt = new SignedJWT(
-                    new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(rsaKey.getKeyID()).build(),
-                    claims);
-            jwt.sign(new RSASSASigner(rsaKey));
-            return new InternalJwtIssuer.AccessToken(jwt.serialize(), maxTokenTtl, client.scopes());
+            return sign(claims, client.scopes());
         } catch (Exception ex) {
             throw new IllegalStateException("Unable to mint internal JWT", ex);
         }
+    }
+
+    /**
+     * Control-plane JWT: {@code platform:admin} scope, no {@code tenant_id} claim (FL-158).
+     */
+    InternalJwtIssuer.AccessToken mintPlatformAdmin(UUID jti, Duration ttl) {
+        Duration effective = ttl == null || ttl.isZero() || ttl.isNegative() || ttl.compareTo(maxTokenTtl) > 0
+                ? maxTokenTtl
+                : ttl;
+        Instant now = Instant.now();
+        Instant exp = now.plus(effective);
+        String scope = com.pauluno.finledger.infrastructure.security.LedgerAuthorities.PLATFORM_ADMIN;
+        try {
+            JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                    .issuer(issuer)
+                    .subject("platform-bootstrap")
+                    .jwtID(jti.toString())
+                    .issueTime(Date.from(now))
+                    .expirationTime(Date.from(exp))
+                    .claim("scope", scope)
+                    .build();
+            return sign(claims, scope);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Unable to mint platform bootstrap JWT", ex);
+        }
+    }
+
+    private InternalJwtIssuer.AccessToken sign(JWTClaimsSet claims, String scope) throws Exception {
+        SignedJWT jwt = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(rsaKey.getKeyID()).build(),
+                claims);
+        jwt.sign(new RSASSASigner(rsaKey));
+        Duration ttl = Duration.between(
+                claims.getIssueTime().toInstant(),
+                claims.getExpirationTime().toInstant());
+        return new InternalJwtIssuer.AccessToken(jwt.serialize(), ttl, scope);
     }
 
     static RSAKey requireKeyId(RSAKey key) {

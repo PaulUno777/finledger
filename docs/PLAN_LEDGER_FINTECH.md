@@ -421,7 +421,7 @@ Détail complet des règles de test (jqwik, PIT, Testcontainers, tests de concur
 
 ## 6. Configuration (couches : image → fichier externe → env vars + finledger.env.example)
 
-## 6b. Intégration CTO ([INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md))
+## 6b. Intégration ([INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md))
 
 ## 7. API (OpenAPI/Swagger, exemples curl avec Idempotency-Key)
 
@@ -557,7 +557,7 @@ Voir [ADR-012](adr/ADR-012-docker-distribution.md), [ADR-015](adr/ADR-015-operat
 15f. **Bootstrap control-plane (FL-158)** — scope `platform:admin` distinct de `ledger:admin` ; cérémonie one-shot (JWT court, fail-closed dès qu'un platform-admin existe) pour cold-start `normal` sans IdP ; prod reste `issuer=external`. Amendement ADR-016.
 16. Contract tests vis-à-vis d'un "client fintech" fictif + client de référence non-officiel (`/sdk-reference/`, §15).
 17. Durcissement : chaos testing, tests de charge, revue de sécurité.
-18. **Guide CTO / intégration production** — runbook final pour intégrer FinLedger dans une stack fintech existante ([INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md), FL-190), après validation pas-à-pas.
+18. **Guide intégration production** — runbook final pour intégrer FinLedger dans une stack fintech existante ([INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md), FL-190), après validation pas-à-pas.
 19. **Post-v1 (conditionné à l'adoption)** : SDK multi-langues officiels ; éventuelle promotion d'un adapter gRPC au rang d'interface publique si un besoin réel le justifie.
 
 ---
