@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.SecurityFilterChain;
 
 import com.pauluno.finledger.infrastructure.security.LedgerAuthorities;
+import com.pauluno.finledger.infrastructure.security.PublicSecurityPaths;
 import com.pauluno.finledger.infrastructure.security.TenantClaimAuthorizationFilter;
 
 /**
@@ -29,9 +30,7 @@ public class InternalIssuerSecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers("/actuator/prometheus").permitAll()
-                        .requestMatchers("/api/v1/auth/jwks", "/api/v1/auth/token").permitAll()
+                        .requestMatchers(PublicSecurityPaths.MATCHERS).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants/*/rails/webhooks/settlement")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants")

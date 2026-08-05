@@ -183,8 +183,11 @@ docker compose --profile with-app up -d --build
 
 ### 4.2 IdP-less local `normal` (in-box issuer)
 
-Useful for CI / local without Keycloak. **No sandbox seed** — create tenants yourself.
-Each mint client is **bound to one `tenant_id`** (FL-156).
+Useful for CI / local without Keycloak against a **pre-seeded** tenant UUID.
+`POST /api/v1/tenants` assigns a random id — it will **not** match
+`FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_TENANT_ID` unless you seeded that UUID.
+IdP-less cold-start (first tenant from empty DB) is **FL-158**. Production onboarding
+uses **external IdP** (§4.1 / §5).
 
 ```bash
 # PKCS#8 signing key (once)

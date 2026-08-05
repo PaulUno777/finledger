@@ -26,8 +26,7 @@ public class ExternalIssuerSecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers("/actuator/prometheus").permitAll()
+                        .requestMatchers(PublicSecurityPaths.MATCHERS).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants/*/rails/webhooks/settlement")
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenants")
