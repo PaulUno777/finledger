@@ -75,10 +75,13 @@ class PlatformBootstrapCommand implements Callable<Integer> {
             System.err.println("Response missing access_token: " + response.body());
             return 1;
         }
+        globals.acceptMint(token, parsed.path("expires_in").asLong(0));
+        // Platform secret is one-shot — no client-credentials remint session.
         System.out.println(token);
         long expiresIn = parsed.path("expires_in").asLong(-1);
         if (expiresIn > 0) {
-            System.err.println("# expires_in=" + expiresIn + "s — export as FINLEDGER_TOKEN, then: tenant create");
+            System.err.println("# expires_in=" + expiresIn
+                    + "s — token stored in process memory; remint via auth token or export FINLEDGER_TOKEN");
         }
         return 0;
     }

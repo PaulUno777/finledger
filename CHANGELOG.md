@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- API CLI UX (FL-153): process-memory session after `auth token`, silent remint on
+  near-expiry/401 (in-box issuer only), global `--dry-run`, `health`/`ready` commands,
+  `doctor` fails on unhealthy actuator; ADR-015 drops obsolete tenant header wording
+  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) §9)
 - Platform bootstrap (FL-158): one-shot `POST /api/v1/platform/bootstrap` +
   `platform:admin` JWT (no `tenant_id`); optional client-supplied tenant `id` on
   create; CLI `platform bootstrap`; ADR-016 addendum

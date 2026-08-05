@@ -33,6 +33,7 @@ public class ShellCommand implements Callable<Integer> {
                 .build();
 
         terminal.writer().println("FinLedger shell — type 'exit' or Ctrl-D to quit. Shared options apply from the outer invocation.");
+        terminal.writer().println(globals.contextBanner());
         terminal.flush();
 
         while (true) {

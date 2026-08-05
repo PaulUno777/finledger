@@ -50,8 +50,8 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-155 | Sandbox ephemeral JWT + remove ADR-014 modes / collapse profiles | `feature/FL-155-sandbox-jwt-issuer` | done |
 | FL-156 | Persistent internal issuer for normal/CI (durable secrets) | `feature/FL-156-internal-jwt-issuer` | done |
 | FL-157 | Richer sandbox scenarios + mint for any existing sandbox tenant | `feature/FL-157-sandbox-scenarios` | done |
-| FL-158 | Platform bootstrap (`platform:admin` + one-shot JWT) for IdP-less normal | `feature/FL-158-platform-bootstrap` | ready for PR |
-| FL-153 | API CLI UX (tenant header, health/ready, dry-run, silent refresh) | `feature/FL-153-api-cli-ux` | pending (after FL-158) |
+| FL-158 | Platform bootstrap (`platform:admin` + one-shot JWT) for IdP-less normal | `feature/FL-158-platform-bootstrap` | done |
+| FL-153 | API CLI UX (health/ready, dry-run, silent refresh) | `feature/FL-153-api-cli-ux` | ready for PR |
 | FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | pending |
 | FL-170 | Hardening | `feature/FL-170-hardening` | pending |
 | FL-180 | Post-v1 official multi-lang SDKs (separate repos) | `feature/FL-180-official-sdks` | pending |
@@ -63,8 +63,8 @@ copy-paste [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) instructions as if a
 fintech CTO were integrating FinLedger into their stack. Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 Auth target: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 
-**Gate note:** FL-158 is complete on this branch — stop for human PR into `develop`.
-Do **not** start FL-153 until FL-158 is merged.
+**Gate note:** FL-153 (API CLI UX) is on this branch — stop for human PR into `develop`.
+Do **not** start FL-160 until FL-153 is merged.
 
 ## Phase gate checklist
 

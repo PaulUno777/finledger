@@ -298,13 +298,15 @@ FinLedger (image) → Your Postgres (RLS)
 ## 9. Day-2 CLI
 
 ```bash
-./bin/finledger-cli                 # REPL
-./bin/finledger-cli doctor
+./bin/finledger-cli                 # REPL (prints session banner; silent remint in-box only)
+./bin/finledger-cli health          # GET …/actuator/health
+./bin/finledger-cli ready           # readiness, else health UP
+./bin/finledger-cli doctor          # fails if actuator unhealthy
 ./bin/finledger-cli status
 ./bin/finledger-cli logs -f --service app-sandbox
-./bin/finledger-cli auth token      # prompts for secret on TTY
+./bin/finledger-cli auth token      # prompts for secret on TTY; stores session for remint
 ./bin/finledger-cli platform bootstrap
-./bin/finledger-cli tenant create
+./bin/finledger-cli tenant create --dry-run   # print request; no HTTP
 ./bin/finledger-cli down            # preserves Postgres data
 ```
 
@@ -312,6 +314,12 @@ Interactive rules:
 
 - **TTY:** missing secrets/fields → console prompt (`readPassword` for secrets).
 - **Non-TTY / CI:** flags or env required (no hanging prompts).
+- **Silent remint:** after `auth token` in the same process/shell, near-expiry or HTTP
+  `401` remints via stored client credentials (in-box issuer only). External IdP:
+  export `FINLEDGER_TOKEN` yourself — CLI does not refresh IdP tokens.
+- **`--dry-run`:** global on mutating API calls (`tenant` / `account` / `fx` / `split-rules`);
+  not applied to `auth token` / `platform bootstrap` (those *are* the mint).
+- **Tenant binding:** JWT `tenant_id` claim only — no `X-FinLedger-Tenant-Id` header.
 
 ---
 
