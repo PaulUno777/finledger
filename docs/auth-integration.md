@@ -67,17 +67,26 @@ FinLedger only **verifies** (signature, alg allowlist, `exp`, max TTL, scopes,
 
 Sandbox (`SPRING_PROFILES_ACTIVE=sandbox`): FinLedger sets `issuer=internal`, mints at
 `POST /api/v1/auth/token`, publishes JWKS at `GET /api/v1/auth/jwks`. Ephemeral keys —
-tokens are **not** valid against a normal deployment.
+tokens are **not** valid against a normal deployment. Seed pack is selected with
+`finledger.sandbox.scenario` / `FINLEDGER_SANDBOX_SCENARIO` (`simple` \| `aggregator` \|
+`remittance`). Optional mint body field `tenant_id` stamps that claim when the tenant
+already exists in the DB (unknown → `400 unknown_tenant`). Default claim is
+`SandboxIds.TENANT_ID` when omitted.
 
 **Normal + internal:** same mint/JWKS paths, but signing key and clients are durable and
 **client-bound** — each `client_id` maps to exactly one `tenant_id` (least privilege). A
-leaked secret cannot mint tokens for arbitrary tenants.
+leaked secret cannot mint tokens for arbitrary tenants. Passing `tenant_id` in the mint
+body is rejected with **`400 tenant_id_not_allowed`** (never silently ignored).
 
 ## CLI: when `auth token` applies
 
 ```bash
 # Sandbox / internal issuer only
 ./bin/finledger-cli auth token --client-id sandbox --client-secret '<from dump>'
+./bin/finledger-cli auth token --client-secret '<from dump>' --tenant-id '<seeded-uuid>'
+
+# Pick scenario before compose up (writes .env)
+./bin/finledger-cli sandbox init --scenario aggregator
 
 # Normal + external IdP
 export FINLEDGER_TOKEN='…'   # from your IdP/BFF
@@ -87,6 +96,7 @@ export FINLEDGER_TOKEN='…'   # from your IdP/BFF
 
 ```bash
 cp finledger.env.example .env
+./bin/finledger-cli sandbox init --scenario simple
 docker compose --profile sandbox up -d --build
 ./bin/finledger-cli auth token --client-secret '<from dump>'
 ```

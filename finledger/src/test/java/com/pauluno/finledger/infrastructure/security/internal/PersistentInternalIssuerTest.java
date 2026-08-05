@@ -47,7 +47,7 @@ class PersistentInternalIssuerTest {
 
     @Test
     void should_mint_token_bound_to_client_tenant() {
-        InternalJwtIssuer.AccessToken token = issuer.mintAccessToken("ci-a", "secret-a");
+        InternalJwtIssuer.AccessToken token = issuer.mintAccessToken("ci-a", "secret-a", null);
         Jwt jwt = issuer.jwtDecoder().decode(token.value());
 
         assertThat(jwt.getIssuer().toString()).isEqualTo(issuer.issuer());
@@ -59,7 +59,7 @@ class PersistentInternalIssuerTest {
 
     @Test
     void should_mint_with_client_specific_scopes() {
-        InternalJwtIssuer.AccessToken token = issuer.mintAccessToken("ci-b", "secret-b");
+        InternalJwtIssuer.AccessToken token = issuer.mintAccessToken("ci-b", "secret-b", null);
         Jwt jwt = issuer.jwtDecoder().decode(token.value());
 
         assertThat(jwt.getClaimAsString(TenantClaimAuthorizationFilter.TENANT_ID_CLAIM))
@@ -70,14 +70,21 @@ class PersistentInternalIssuerTest {
 
     @Test
     void should_reject_wrong_secret() {
-        assertThatThrownBy(() -> issuer.mintAccessToken("ci-a", "wrong"))
+        assertThatThrownBy(() -> issuer.mintAccessToken("ci-a", "wrong", null))
                 .isInstanceOf(InvalidClientCredentialsException.class);
     }
 
     @Test
     void should_reject_unknown_client() {
-        assertThatThrownBy(() -> issuer.mintAccessToken("unknown", "secret-a"))
+        assertThatThrownBy(() -> issuer.mintAccessToken("unknown", "secret-a", null))
                 .isInstanceOf(InvalidClientCredentialsException.class);
+    }
+
+    @Test
+    void should_reject_body_tenant_id_explicitly() {
+        assertThatThrownBy(() -> issuer.mintAccessToken("ci-a", "secret-a", TENANT_A))
+                .isInstanceOf(TenantIdNotAllowedException.class)
+                .hasMessageContaining("tenant_id must not be passed");
     }
 
     @Test

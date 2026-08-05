@@ -168,6 +168,17 @@ class PersistentInternalIssuerIntegrationTest {
                 .andExpect(jsonPath("$.error").value("invalid_client"));
     }
 
+    @Test
+    void should_reject_body_tenant_id_on_persistent_mint() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"grant_type":"client_credentials","client_id":"%s","client_secret":"%s","tenant_id":"%s"}
+                                """.formatted(CLIENT_ID, CLIENT_SECRET, TENANT_ID)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("tenant_id_not_allowed"));
+    }
+
     private String mintToken() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/token")
                         .contentType(MediaType.APPLICATION_JSON)

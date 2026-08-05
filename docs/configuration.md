@@ -57,12 +57,15 @@ is for **minting only**, never the API Bearer.
 | `finledger.security.issuer` | `FINLEDGER_SECURITY_ISSUER` | `external` (default) \| `internal` |
 | `finledger.security.max-token-ttl` | `FINLEDGER_SECURITY_MAX_TOKEN_TTL` | Default `15m` |
 | `finledger.sandbox.client-id` / `client-secret` | `FINLEDGER_SANDBOX_CLIENT_ID` / `_SECRET` | Sandbox mint only; blank secret → generated at boot |
+| `finledger.sandbox.scenario` | `FINLEDGER_SANDBOX_SCENARIO` | `simple` (default) \| `aggregator` \| `remittance`; CLI `sandbox init` |
 | `finledger.security.internal.issuer-uri` | `FINLEDGER_INTERNAL_ISSUER_URI` | Distinct URI for normal+internal (default `http://localhost:8080/internal`) |
 | `finledger.security.internal.signing-key-pem` / `signing-key-path` | `FINLEDGER_INTERNAL_SIGNING_KEY_PEM` / `_PATH` | PKCS#8 PEM; **required** for normal+internal (never auto-generated) |
 | `finledger.security.internal.clients[]` | `FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_*` | Tenant-bound machine clients (`client-id`, `client-secret`, `tenant-id`, optional `scopes`) |
 
 Sandbox Compose: `SPRING_PROFILES_ACTIVE=sandbox` → `issuer=internal` (ephemeral keys). Mint:
-`POST /api/v1/auth/token` or `./bin/finledger-cli auth token`.
+`POST /api/v1/auth/token` or `./bin/finledger-cli auth token` (optional `--tenant-id` for any
+seeded tenant). Scenario packs: `./bin/finledger-cli sandbox init --scenario …` then `up`.
+On normal+internal, mint body `tenant_id` → HTTP 400 `tenant_id_not_allowed`.
 
 **Normal + internal (IdP-less CI):** durable RSA + at least one client bound to a
 `tenant_id`. Boot fails if the signing key or clients are missing. Generate a local key:
@@ -97,9 +100,10 @@ interactive REPL. Prod: colocate `finledger-cli.jar` with the script, or set `FI
 | `status` | `compose ps` + `GET …/actuator/health` |
 | `up [--profile sandbox\|with-app] [--build]` | `docker compose up -d` |
 | `down` | `docker compose down` (no `-v` — preserves Postgres data) |
+| `sandbox init [--scenario …]` | Write `FINLEDGER_SANDBOX_SCENARIO` into `.env` (no Compose start) |
 | `restart [--service app-sandbox\|app]` | Restart app container |
 | `logs [-f] [--service …]` | Compose logs |
-| `auth token` | Mint sandbox/internal JWT only — **not** for normal+external IdP |
+| `auth token [--tenant-id]` | Mint sandbox/internal JWT only — **not** for normal+external IdP |
 
 ### AuthN / AuthZ (JWT — always)
 

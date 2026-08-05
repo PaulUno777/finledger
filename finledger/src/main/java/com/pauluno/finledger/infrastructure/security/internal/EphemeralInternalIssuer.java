@@ -3,6 +3,7 @@ package com.pauluno.finledger.infrastructure.security.internal;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
@@ -12,8 +13,8 @@ import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.pauluno.finledger.security.policy.SandboxIds;
 
 /**
- * Ephemeral RSA issuer for sandbox (FL-155 / ADR-016). Keys regenerate each JVM boot.
- * Tenant claim is always {@link SandboxIds#TENANT_ID}.
+ * Ephemeral RSA issuer for sandbox (FL-155 / FL-157). Keys regenerate each JVM boot.
+ * Optional mint {@code tenant_id} must refer to an existing tenant (validated by caller).
  */
 public final class EphemeralInternalIssuer implements InternalJwtIssuer {
 
@@ -90,11 +91,17 @@ public final class EphemeralInternalIssuer implements InternalJwtIssuer {
     }
 
     @Override
-    public AccessToken mintAccessToken(String requestedClientId, String requestedClientSecret) {
+    public AccessToken mintAccessToken(String requestedClientId, String requestedClientSecret, UUID tenantIdOrNull) {
         if (!client.clientId().equals(requestedClientId)
                 || !client.clientSecret().equals(requestedClientSecret)) {
             throw new InvalidClientCredentialsException("Invalid client_id or client_secret");
         }
-        return support.mint(client);
+        UUID tenantId = tenantIdOrNull == null ? SandboxIds.TENANT_ID : tenantIdOrNull;
+        InternalClientCredentials forTenant = new InternalClientCredentials(
+                client.clientId(),
+                client.clientSecret(),
+                tenantId,
+                client.scopes());
+        return support.mint(forTenant);
     }
 }

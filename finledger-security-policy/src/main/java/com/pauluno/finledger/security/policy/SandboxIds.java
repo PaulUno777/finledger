@@ -17,7 +17,7 @@ public final class SandboxIds {
     public static final UUID FROM_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000010");
     public static final UUID TO_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000011");
 
-    public static final String TENANT_NAME = "sandbox";
+    public static final String TENANT_NAME = "EcoPay";
     public static final String FROM_OWNER_REF = "sandbox-from";
     public static final String TO_OWNER_REF = "sandbox-to";
 

@@ -4,8 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Currency;
-import java.util.List;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,17 +20,18 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.pauluno.finledger.application.port.out.LedgerAccountRepository;
 import com.pauluno.finledger.application.port.out.TenantRepository;
 import com.pauluno.finledger.application.tenant.TenantContext;
-import com.pauluno.finledger.domain.model.AccountStatus;
-import com.pauluno.finledger.domain.model.AccountType;
-import com.pauluno.finledger.domain.model.LedgerAccount;
-import com.pauluno.finledger.domain.model.Tenant;
-import com.pauluno.finledger.domain.model.TenantType;
+import com.pauluno.finledger.infrastructure.boot.sandbox.AggregatorSandboxSeeder;
+import com.pauluno.finledger.infrastructure.boot.sandbox.RemittanceSandboxSeeder;
+import com.pauluno.finledger.infrastructure.boot.sandbox.SandboxScenario;
+import com.pauluno.finledger.infrastructure.boot.sandbox.SandboxScenarioSeeder;
+import com.pauluno.finledger.infrastructure.boot.sandbox.SandboxSeedSnapshot;
+import com.pauluno.finledger.infrastructure.boot.sandbox.SimpleSandboxSeeder;
 import com.pauluno.finledger.infrastructure.security.internal.EphemeralInternalIssuer;
 import com.pauluno.finledger.infrastructure.security.internal.InternalJwtIssuer;
 import com.pauluno.finledger.security.policy.SandboxIds;
 
 /**
- * Seeds sandbox tenant/accounts and dumps mint credentials (FL-155 / ADR-016).
+ * Seeds sandbox scenario data and dumps mint credentials (FL-157 / ADR-016).
  */
 @Component
 @Profile("sandbox")
@@ -39,10 +39,10 @@ import com.pauluno.finledger.security.policy.SandboxIds;
 public class SandboxBootstrap implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SandboxBootstrap.class);
-    private static final Currency USD = Currency.getInstance("USD");
 
     private final String dumpPath;
     private final String baseUrl;
+    private final SandboxScenario scenario;
     private final TenantRepository tenantRepository;
     private final LedgerAccountRepository ledgerAccountRepository;
     private final EphemeralInternalIssuer issuer;
@@ -51,6 +51,7 @@ public class SandboxBootstrap implements ApplicationRunner {
     public SandboxBootstrap(
             @Value("${finledger.sandbox.dump-path:config/sandbox-ready.txt}") String dumpPath,
             @Value("${finledger.sandbox.base-url:http://localhost:8080}") String baseUrl,
+            @Value("${finledger.sandbox.scenario:simple}") String scenarioConfig,
             TenantRepository tenantRepository,
             LedgerAccountRepository ledgerAccountRepository,
             InternalJwtIssuer issuer,
@@ -61,6 +62,7 @@ public class SandboxBootstrap implements ApplicationRunner {
         }
         this.dumpPath = dumpPath;
         this.baseUrl = baseUrl;
+        this.scenario = SandboxScenario.fromConfig(scenarioConfig);
         this.tenantRepository = tenantRepository;
         this.ledgerAccountRepository = ledgerAccountRepository;
         this.issuer = ephemeral;
@@ -71,8 +73,10 @@ public class SandboxBootstrap implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         TenantContext.enableBypass();
         try {
-            transactionTemplate.executeWithoutResult(status -> seedSandboxData());
-            String content = buildDump();
+            SandboxSeedSnapshot[] holder = new SandboxSeedSnapshot[1];
+            transactionTemplate.executeWithoutResult(status -> holder[0] = seeder().seed(
+                    tenantRepository, ledgerAccountRepository));
+            String content = buildDump(holder[0]);
             log.info("\n{}", content);
             writeDump(content);
         } finally {
@@ -80,72 +84,80 @@ public class SandboxBootstrap implements ApplicationRunner {
         }
     }
 
-    private void seedSandboxData() {
-        if (tenantRepository.findById(SandboxIds.TENANT_ID).isEmpty()) {
-            Tenant tenant = new Tenant(
-                    SandboxIds.TENANT_ID, TenantType.STANDALONE, null, SandboxIds.TENANT_NAME);
-            tenantRepository.save(tenant);
-            tenantRepository.replaceAncestry(SandboxIds.TENANT_ID, List.of(SandboxIds.TENANT_ID));
-        }
-        ensureAccount(SandboxIds.FROM_ACCOUNT_ID, SandboxIds.FROM_OWNER_REF);
-        ensureAccount(SandboxIds.TO_ACCOUNT_ID, SandboxIds.TO_OWNER_REF);
+    private SandboxScenarioSeeder seeder() {
+        return switch (scenario) {
+            case SIMPLE -> new SimpleSandboxSeeder();
+            case AGGREGATOR -> new AggregatorSandboxSeeder();
+            case REMITTANCE -> new RemittanceSandboxSeeder();
+        };
     }
 
-    private void ensureAccount(java.util.UUID accountId, String ownerRef) {
-        if (ledgerAccountRepository.findById(accountId).isPresent()) {
-            return;
-        }
-        ledgerAccountRepository.save(new LedgerAccount(
-                accountId,
-                SandboxIds.TENANT_ID,
-                ownerRef,
-                USD,
-                AccountType.MERCHANT_WALLET,
-                AccountStatus.OPEN,
-                true
-        ));
-    }
+    private String buildDump(SandboxSeedSnapshot snap) {
+        UUID defaultTenant = snap.tenants().isEmpty()
+                ? SandboxIds.TENANT_ID
+                : snap.tenants().getFirst().tenantId();
+        String demoToken = issuer.mintAccessToken(
+                issuer.clientId(), issuer.clientSecret(), defaultTenant).value();
 
-    private String buildDump() {
-        String tenant = SandboxIds.TENANT_ID.toString();
-        String from = SandboxIds.FROM_ACCOUNT_ID.toString();
-        String to = SandboxIds.TO_ACCOUNT_ID.toString();
-        String demoToken = issuer.mintAccessToken(issuer.clientId(), issuer.clientSecret()).value();
         StringBuilder sb = new StringBuilder();
-        sb.append("=== FinLedger sandbox ready (FL-155) ===\n");
+        sb.append("=== FinLedger sandbox ready (FL-157) ===\n");
+        sb.append("scenario=").append(scenario.configValue()).append('\n');
         sb.append("issuer=").append(issuer.issuer()).append('\n');
         sb.append("baseUrl=").append(baseUrl).append('\n');
-        sb.append("tenantId=").append(tenant).append('\n');
-        sb.append("fromAccountId=").append(from).append('\n');
-        sb.append("toAccountId=").append(to).append('\n');
         sb.append("clientId=").append(issuer.clientId()).append('\n');
         sb.append("clientSecret=").append(issuer.clientSecret()).append('\n');
         sb.append("maxTokenTtl=").append(issuer.maxTokenTtl()).append('\n');
         sb.append('\n');
-        sb.append("# Mint a short-lived JWT (re-run when expired):\n");
+        sb.append("# Seeded tenants:\n");
+        for (var t : snap.tenants()) {
+            sb.append("tenant.").append(t.type()).append('=')
+                    .append(t.tenantId()).append(' ').append(t.name()).append('\n');
+        }
+        sb.append("# Seeded accounts:\n");
+        for (var a : snap.accounts()) {
+            sb.append("account.").append(a.ownerRef()).append('=')
+                    .append(a.accountId())
+                    .append(" tenant=").append(a.tenantId())
+                    .append(" currency=").append(a.currency())
+                    .append('\n');
+        }
+        sb.append('\n');
+        sb.append("# Mint JWT (optional tenant_id for any seeded tenant):\n");
         sb.append("curl -s -X POST '").append(baseUrl).append("/api/v1/auth/token' \\\n");
         sb.append("  -H 'Content-Type: application/json' \\\n");
         sb.append("  -d '{\"grant_type\":\"client_credentials\",\"client_id\":\"")
                 .append(issuer.clientId())
                 .append("\",\"client_secret\":\"")
                 .append(issuer.clientSecret())
+                .append("\",\"tenant_id\":\"")
+                .append(defaultTenant)
                 .append("\"}'\n");
-        sb.append("# Or: ./bin/finledger-cli auth token --client-id ")
-                .append(issuer.clientId())
-                .append(" --client-secret '<from dump>'\n");
+        sb.append("# Or: ./bin/finledger-cli auth token --client-secret '<from dump>' --tenant-id ")
+                .append(defaultTenant).append('\n');
         sb.append('\n');
-        sb.append("# Post a demo transfer (token expires — remint as needed):\n");
-        sb.append("TOKEN='").append(demoToken).append("'\n");
-        sb.append("curl -s -X POST '").append(baseUrl).append("/api/v1/tenants/").append(tenant)
-                .append("/journal-entries' \\\n");
-        sb.append("  -H \"Authorization: Bearer $TOKEN\" \\\n");
-        sb.append("  -H 'Content-Type: application/json' \\\n");
-        sb.append("  -H 'Idempotency-Key: sandbox-demo-1' \\\n");
-        sb.append("  -d '{\"transactionReference\":\"sandbox-tx-1\",\"postings\":[")
-                .append("{\"accountId\":\"").append(from)
-                .append("\",\"amount\":\"-10.00\",\"currencyCode\":\"USD\",\"settlementStatus\":\"SETTLED\"},")
-                .append("{\"accountId\":\"").append(to)
-                .append("\",\"amount\":\"10.00\",\"currencyCode\":\"USD\",\"settlementStatus\":\"SETTLED\"}]}'\n");
+        if (snap.accounts().size() >= 2) {
+            var from = snap.accounts().get(0);
+            var to = snap.accounts().stream()
+                    .filter(a -> a.tenantId().equals(from.tenantId()) && !a.accountId().equals(from.accountId()))
+                    .findFirst()
+                    .orElse(snap.accounts().get(1));
+            sb.append("# Demo journal on tenant ").append(from.tenantId()).append(":\n");
+            sb.append("TOKEN='").append(demoToken).append("'\n");
+            sb.append("curl -s -X POST '").append(baseUrl).append("/api/v1/tenants/")
+                    .append(from.tenantId()).append("/journal-entries' \\\n");
+            sb.append("  -H \"Authorization: Bearer $TOKEN\" \\\n");
+            sb.append("  -H 'Content-Type: application/json' \\\n");
+            sb.append("  -H 'Idempotency-Key: sandbox-demo-1' \\\n");
+            sb.append("  -d '{\"transactionReference\":\"sandbox-tx-1\",\"postings\":[")
+                    .append("{\"accountId\":\"").append(from.accountId())
+                    .append("\",\"amount\":\"-10.00\",\"currencyCode\":\"")
+                    .append(from.currency())
+                    .append("\",\"settlementStatus\":\"SETTLED\"},")
+                    .append("{\"accountId\":\"").append(to.accountId())
+                    .append("\",\"amount\":\"10.00\",\"currencyCode\":\"")
+                    .append(to.currency())
+                    .append("\",\"settlementStatus\":\"SETTLED\"}]}'\n");
+        }
         sb.append("=== end ===\n");
         return sb.toString();
     }

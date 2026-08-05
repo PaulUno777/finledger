@@ -57,5 +57,6 @@ finledger:
   sandbox:
     dump-path: config/sandbox-ready.txt
     base-url: http://localhost:8080
+    scenario: ${FINLEDGER_SANDBOX_SCENARIO:simple}
     client-id: ${FINLEDGER_SANDBOX_CLIENT_ID:sandbox}
     client-secret: ${FINLEDGER_SANDBOX_CLIENT_SECRET:}

@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Richer sandbox scenarios (FL-157): packs `simple`|`aggregator`|`remittance` via
+  `FINLEDGER_SANDBOX_SCENARIO`, EcoPay/Send Tunnel demo labels, CLI `sandbox init`,
+  optional mint `tenant_id` for any seeded sandbox tenant; persistent issuer rejects
+  body `tenant_id` with 400 ([INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md))
 - Persistent internal JWT issuer (FL-156): durable PKCS#8 signing key + tenant-bound
   `clients[]` for `normal`+`issuer=internal`; sandbox stays ephemeral; shared
   `InternalJwtIssuer` mint/JWKS surface ([auth-integration.md](docs/auth-integration.md),
