@@ -47,6 +47,11 @@ finledger:
     # external (default) | internal — see docs/auth-integration.md
     issuer: ${FINLEDGER_SECURITY_ISSUER:external}
     max-token-ttl: ${FINLEDGER_SECURITY_MAX_TOKEN_TTL:15m}
+    internal:
+      issuer-uri: ${FINLEDGER_INTERNAL_ISSUER_URI:http://localhost:8080/internal}
+      signing-key-pem: ${FINLEDGER_INTERNAL_SIGNING_KEY_PEM:}
+      signing-key-path: ${FINLEDGER_INTERNAL_SIGNING_KEY_PATH:}
+      public-key-pem: ${FINLEDGER_INTERNAL_PUBLIC_KEY_PEM:}
   fraud:
     enabled: false
   sandbox:

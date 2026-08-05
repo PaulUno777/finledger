@@ -97,6 +97,14 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void should_allow_swagger_ui_without_auth() throws Exception {
+        mockMvc.perform(get("/swagger-ui/index.html"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void should_allow_matching_tenant_claim() throws Exception {
         UUID tenantId = createTenant("sec-ok");
         mockMvc.perform(get("/api/v1/tenants/{tenantId}/audit/integrity", tenantId)

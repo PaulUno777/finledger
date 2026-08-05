@@ -20,7 +20,7 @@ guide: [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md). Config: [configuration.
 |-------------|---------------------|----------------|------------------------------------|
 | **Sandbox** | FinLedger in-box issuer (ephemeral RSA keys each boot) | Re-mint via `POST /api/v1/auth/token` or `./bin/finledger-cli auth token` | Copy curls from `config/sandbox-ready.txt` — **no IdP** |
 | **Normal + external IdP** (default prod) | **Your IdP** (or BFF that obtains tokens from it) | **Your client / BFF / IdP** — **not** FinLedger CLI | Configure issuer/JWKS on FinLedger; put the **claim contract** below in tokens your stack already issues |
-| **Normal + internal issuer** (IdP-less CI; durable secrets in FL-156) | FinLedger in-box issuer | Client/CLI re-mint with `client_id` / `client_secret` | Same mint API as sandbox |
+| **Normal + internal issuer** (IdP-less CI) | FinLedger in-box issuer with **durable** PKCS#8 key + tenant-bound clients | Client/CLI re-mint with that client's `client_id` / `client_secret` | Configure `FINLEDGER_INTERNAL_SIGNING_KEY_*` + `finledger.security.internal.clients[]` |
 
 ### Why mention CLI refresh at all?
 
@@ -67,7 +67,11 @@ FinLedger only **verifies** (signature, alg allowlist, `exp`, max TTL, scopes,
 
 Sandbox (`SPRING_PROFILES_ACTIVE=sandbox`): FinLedger sets `issuer=internal`, mints at
 `POST /api/v1/auth/token`, publishes JWKS at `GET /api/v1/auth/jwks`. Ephemeral keys —
-tokens are **not** valid against a normal/external deployment.
+tokens are **not** valid against a normal deployment.
+
+**Normal + internal:** same mint/JWKS paths, but signing key and clients are durable and
+**client-bound** — each `client_id` maps to exactly one `tenant_id` (least privilege). A
+leaked secret cannot mint tokens for arbitrary tenants.
 
 ## CLI: when `auth token` applies
 

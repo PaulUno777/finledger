@@ -56,10 +56,20 @@ is for **minting only**, never the API Bearer.
 | `spring.profiles.active` | `SPRING_PROFILES_ACTIVE` | `sandbox` \| `normal` only |
 | `finledger.security.issuer` | `FINLEDGER_SECURITY_ISSUER` | `external` (default) \| `internal` |
 | `finledger.security.max-token-ttl` | `FINLEDGER_SECURITY_MAX_TOKEN_TTL` | Default `15m` |
-| `finledger.sandbox.client-id` / `client-secret` | `FINLEDGER_SANDBOX_CLIENT_ID` / `_SECRET` | Mint credentials; blank secret → generated at boot |
+| `finledger.sandbox.client-id` / `client-secret` | `FINLEDGER_SANDBOX_CLIENT_ID` / `_SECRET` | Sandbox mint only; blank secret → generated at boot |
+| `finledger.security.internal.issuer-uri` | `FINLEDGER_INTERNAL_ISSUER_URI` | Distinct URI for normal+internal (default `http://localhost:8080/internal`) |
+| `finledger.security.internal.signing-key-pem` / `signing-key-path` | `FINLEDGER_INTERNAL_SIGNING_KEY_PEM` / `_PATH` | PKCS#8 PEM; **required** for normal+internal (never auto-generated) |
+| `finledger.security.internal.clients[]` | `FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_*` | Tenant-bound machine clients (`client-id`, `client-secret`, `tenant-id`, optional `scopes`) |
 
-Sandbox Compose: `SPRING_PROFILES_ACTIVE=sandbox` → `issuer=internal`. Mint:
+Sandbox Compose: `SPRING_PROFILES_ACTIVE=sandbox` → `issuer=internal` (ephemeral keys). Mint:
 `POST /api/v1/auth/token` or `./bin/finledger-cli auth token`.
+
+**Normal + internal (IdP-less CI):** durable RSA + at least one client bound to a
+`tenant_id`. Boot fails if the signing key or clients are missing. Generate a local key:
+
+```bash
+openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out config/internal-signing.pem
+```
 
 **Interlocks:** boot fails if profile `sandbox` with `FINLEDGER_ENV=production|prod`,
 or if `sandbox` and `normal` are both active.

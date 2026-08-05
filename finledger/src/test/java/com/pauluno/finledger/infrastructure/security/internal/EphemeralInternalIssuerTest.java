@@ -14,7 +14,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtException;
 
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
@@ -42,13 +41,14 @@ class EphemeralInternalIssuerTest {
 
     @Test
     void should_mint_and_decode_token_with_tenant_and_scopes() {
-        String token = issuer.mintAccessToken("sandbox", "test-secret");
-        Jwt jwt = issuer.jwtDecoder().decode(token);
+        InternalJwtIssuer.AccessToken token = issuer.mintAccessToken("sandbox", "test-secret");
+        Jwt jwt = issuer.jwtDecoder().decode(token.value());
 
         assertThat(jwt.getIssuer().toString()).isEqualTo(issuer.issuer());
         assertThat(jwt.getClaimAsString(TenantClaimAuthorizationFilter.TENANT_ID_CLAIM))
                 .isEqualTo(SandboxIds.TENANT_ID.toString());
         assertThat(jwt.getClaimAsString("scope")).contains("ledger:write");
+        assertThat(token.scope()).contains("ledger:write");
         assertThat(Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt()))
                 .isLessThanOrEqualTo(Duration.ofMinutes(15));
     }
@@ -56,7 +56,7 @@ class EphemeralInternalIssuerTest {
     @Test
     void should_reject_invalid_client_secret() {
         assertThatThrownBy(() -> issuer.mintAccessToken("sandbox", "wrong"))
-                .isInstanceOf(EphemeralInternalIssuer.InvalidClientCredentialsException.class);
+                .isInstanceOf(InvalidClientCredentialsException.class);
     }
 
     @Test
@@ -85,8 +85,7 @@ class EphemeralInternalIssuerTest {
                 claims);
         jwt.sign(new RSASSASigner(key));
 
-        EphemeralInternalIssuer.MaxTokenLifetimeValidator validator =
-                new EphemeralInternalIssuer.MaxTokenLifetimeValidator(Duration.ofMinutes(15));
+        MaxTokenLifetimeValidator validator = new MaxTokenLifetimeValidator(Duration.ofMinutes(15));
         Jwt springJwt = Jwt.withTokenValue(jwt.serialize())
                 .header("alg", "RS256")
                 .issuer(issuer.issuer())
@@ -110,7 +109,7 @@ class EphemeralInternalIssuerTest {
     @Test
     void decoder_should_accept_freshly_minted_token() {
         JwtDecoder decoder = issuer.jwtDecoder();
-        String token = issuer.mintAccessToken(issuer.clientId(), issuer.clientSecret());
+        String token = issuer.mintAccessToken(issuer.clientId(), issuer.clientSecret()).value();
         assertThat(decoder.decode(token).getSubject()).isEqualTo("sandbox");
     }
 

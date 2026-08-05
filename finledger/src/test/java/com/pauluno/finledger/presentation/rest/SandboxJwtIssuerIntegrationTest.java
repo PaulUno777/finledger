@@ -147,6 +147,14 @@ class SandboxJwtIssuerIntegrationTest {
                 .andExpect(jsonPath("$.keys[0].kty").value("RSA"));
     }
 
+    @Test
+    void should_expose_swagger_ui_without_auth() throws Exception {
+        mockMvc.perform(get("/swagger-ui/index.html"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk());
+    }
+
     private String mintToken() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/token")
                         .contentType(MediaType.APPLICATION_JSON)

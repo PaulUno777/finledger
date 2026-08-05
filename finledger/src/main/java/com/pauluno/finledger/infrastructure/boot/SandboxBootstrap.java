@@ -27,6 +27,7 @@ import com.pauluno.finledger.domain.model.LedgerAccount;
 import com.pauluno.finledger.domain.model.Tenant;
 import com.pauluno.finledger.domain.model.TenantType;
 import com.pauluno.finledger.infrastructure.security.internal.EphemeralInternalIssuer;
+import com.pauluno.finledger.infrastructure.security.internal.InternalJwtIssuer;
 import com.pauluno.finledger.security.policy.SandboxIds;
 
 /**
@@ -52,14 +53,17 @@ public class SandboxBootstrap implements ApplicationRunner {
             @Value("${finledger.sandbox.base-url:http://localhost:8080}") String baseUrl,
             TenantRepository tenantRepository,
             LedgerAccountRepository ledgerAccountRepository,
-            EphemeralInternalIssuer issuer,
+            InternalJwtIssuer issuer,
             TransactionTemplate transactionTemplate
     ) {
+        if (!(issuer instanceof EphemeralInternalIssuer ephemeral)) {
+            throw new IllegalStateException("sandbox profile requires EphemeralInternalIssuer");
+        }
         this.dumpPath = dumpPath;
         this.baseUrl = baseUrl;
         this.tenantRepository = tenantRepository;
         this.ledgerAccountRepository = ledgerAccountRepository;
-        this.issuer = issuer;
+        this.issuer = ephemeral;
         this.transactionTemplate = transactionTemplate;
     }
 
@@ -106,7 +110,7 @@ public class SandboxBootstrap implements ApplicationRunner {
         String tenant = SandboxIds.TENANT_ID.toString();
         String from = SandboxIds.FROM_ACCOUNT_ID.toString();
         String to = SandboxIds.TO_ACCOUNT_ID.toString();
-        String demoToken = issuer.mintAccessToken(issuer.clientId(), issuer.clientSecret());
+        String demoToken = issuer.mintAccessToken(issuer.clientId(), issuer.clientSecret()).value();
         StringBuilder sb = new StringBuilder();
         sb.append("=== FinLedger sandbox ready (FL-155) ===\n");
         sb.append("issuer=").append(issuer.issuer()).append('\n');

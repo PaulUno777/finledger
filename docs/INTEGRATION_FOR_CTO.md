@@ -183,16 +183,26 @@ docker compose --profile with-app up -d --build
 
 ### 4.2 IdP-less local `normal` (in-box issuer)
 
-Useful when you do not have Keycloak yet. Same mint API as sandbox; **no seed** —
-create tenants yourself. Tokens still carry a `tenant_id` claim (today: sandbox
-well-known UUID from the ephemeral issuer until FL-156 expands mint).
+Useful for CI / local without Keycloak against a **pre-seeded** tenant UUID.
+`POST /api/v1/tenants` assigns a random id — it will **not** match
+`FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_TENANT_ID` unless you seeded that UUID.
+IdP-less cold-start (first tenant from empty DB) is **FL-158**. Production onboarding
+uses **external IdP** (§4.1 / §5).
 
 ```bash
+# PKCS#8 signing key (once)
+mkdir -p config
+openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out config/internal-signing.pem
+
 docker compose up -d
 export SPRING_PROFILES_ACTIVE=normal
 export FINLEDGER_ENV=local
 export FINLEDGER_SECURITY_ISSUER=internal
-export FINLEDGER_SANDBOX_CLIENT_SECRET=dev-only-secret   # pick one; required for mint
+export FINLEDGER_INTERNAL_SIGNING_KEY_PATH=./config/internal-signing.pem
+export FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_CLIENT_ID=ci
+export FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_CLIENT_SECRET=dev-only-secret
+# Must match a tenant you create (or seed in tests):
+export FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_TENANT_ID=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
 
 ./mvnw -pl finledger spring-boot:run
 ```
@@ -200,18 +210,15 @@ export FINLEDGER_SANDBOX_CLIENT_SECRET=dev-only-secret   # pick one; required fo
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/token \
   -H 'Content-Type: application/json' \
-  -d '{"grant_type":"client_credentials","client_id":"sandbox","client_secret":"dev-only-secret"}' \
+  -d '{"grant_type":"client_credentials","client_id":"ci","client_secret":"dev-only-secret"}' \
   | jq -r .access_token)
 
-# Create a tenant (admin scope on minted token)
-curl -s -X POST http://localhost:8080/api/v1/tenants \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Acme","type":"STANDALONE"}'
+# JWT tenant_id claim == bound client tenant — call that tenant's APIs
+curl -s http://localhost:8080/api/v1/tenants/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/audit/integrity \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 For production, prefer **`issuer=external`** and your company IdP — see §5.
-
 ---
 
 ## 5. Auth contract (what your team must implement)

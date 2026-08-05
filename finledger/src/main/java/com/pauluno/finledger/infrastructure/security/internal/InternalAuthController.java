@@ -19,16 +19,16 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Sandbox / internal mint + JWKS (FL-155). Not an enterprise IdP — see docs/auth-integration.md.
+ * In-box mint + JWKS (sandbox ephemeral or normal persistent). See docs/auth-integration.md.
  */
 @RestController
 @RequestMapping("/api/v1/auth")
 @ConditionalOnProperty(prefix = "finledger.security", name = "issuer", havingValue = "internal")
 public class InternalAuthController {
 
-    private final EphemeralInternalIssuer issuer;
+    private final InternalJwtIssuer issuer;
 
-    public InternalAuthController(EphemeralInternalIssuer issuer) {
+    public InternalAuthController(InternalJwtIssuer issuer) {
         this.issuer = issuer;
     }
 
@@ -55,18 +55,18 @@ public class InternalAuthController {
         if (grantType != null && !grantType.isBlank() && !"client_credentials".equals(grantType)) {
             throw new UnsupportedGrantTypeException("Only grant_type=client_credentials is supported");
         }
-        String accessToken = issuer.mintAccessToken(clientId, clientSecret);
+        InternalJwtIssuer.AccessToken accessToken = issuer.mintAccessToken(clientId, clientSecret);
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("access_token", accessToken);
+        body.put("access_token", accessToken.value());
         body.put("token_type", "Bearer");
-        body.put("expires_in", issuer.maxTokenTtl().toSeconds());
-        body.put("scope", EphemeralInternalIssuer.SCOPE_CLAIM);
+        body.put("expires_in", accessToken.ttl().toSeconds());
+        body.put("scope", accessToken.scope());
         return body;
     }
 
-    @ExceptionHandler(EphemeralInternalIssuer.InvalidClientCredentialsException.class)
+    @ExceptionHandler(InvalidClientCredentialsException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public Map<String, String> invalidClient(EphemeralInternalIssuer.InvalidClientCredentialsException ex) {
+    public Map<String, String> invalidClient(InvalidClientCredentialsException ex) {
         return Map.of("error", "invalid_client", "error_description", ex.getMessage());
     }
 
