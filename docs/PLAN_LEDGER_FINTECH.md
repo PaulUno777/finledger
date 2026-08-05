@@ -421,7 +421,7 @@ Détail complet des règles de test (jqwik, PIT, Testcontainers, tests de concur
 
 ## 6. Configuration (couches : image → fichier externe → env vars + finledger.env.example)
 
-## 6b. Intégration CTO ([INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md))
+## 6b. Intégration ([INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md))
 
 ## 7. API (OpenAPI/Swagger, exemples curl avec Idempotency-Key)
 

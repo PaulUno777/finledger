@@ -35,7 +35,7 @@ hints, Docker Boot 4 entrypoint).
 5. **Swagger / OpenAPI:** first-class for local/dev and as API documentation;
    disabled or restricted under `prod`. SSH/ops UX is the CLI.
 6. **Final deliverable:** a CTO integration guide
-   ([INTEGRATION_FOR_CTO.md](../INTEGRATION_FOR_CTO.md)) finalized after step-by-step
+   ([INTEGRATION_GUIDE.md](../INTEGRATION_GUIDE.md)) finalized after step-by-step
    validation of remaining roadmap items.
 
 ## Alternatives considered
