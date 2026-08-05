@@ -5,11 +5,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.Callable;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pauluno.finledger.cli.CliPrompts;
 import com.pauluno.finledger.cli.CliSupport;
 import com.pauluno.finledger.cli.GlobalOptions;
 
@@ -19,10 +21,10 @@ import picocli.CommandLine.Spec;
 import picocli.CommandLine.Model.CommandSpec;
 
 /**
- * Mint a short-lived JWT from FinLedger's in-box issuer (sandbox / internal — FL-155).
- * Not for normal+external IdP: there export a token from your IdP/BFF into FINLEDGER_TOKEN.
+ * Mint a short-lived JWT from FinLedger's in-box issuer (sandbox / internal).
+ * For normal+external IdP: export a token from your IdP/BFF into FINLEDGER_TOKEN.
  */
-@Command(name = "auth", description = "Sandbox/internal token helpers (not enterprise IdP)", subcommands = {
+@Command(name = "auth", description = "In-box issuer token helpers (sandbox / internal)", subcommands = {
         AuthTokenCommand.class
 })
 public class AuthCommand implements Runnable {
@@ -32,7 +34,7 @@ public class AuthCommand implements Runnable {
     }
 }
 
-@Command(name = "token", description = "POST /api/v1/auth/token (client_credentials)")
+@Command(name = "token", description = "POST /api/v1/auth/token (client_credentials); prompts for secret on TTY")
 class AuthTokenCommand implements Callable<Integer> {
 
     @Spec
@@ -42,19 +44,44 @@ class AuthTokenCommand implements Callable<Integer> {
             defaultValue = "${env:FINLEDGER_SANDBOX_CLIENT_ID:-sandbox}")
     String clientId;
 
-    @Option(names = "--client-secret", description = "OAuth client secret (env: FINLEDGER_SANDBOX_CLIENT_SECRET)",
+    @Option(names = "--client-secret", description = "OAuth client secret (env or interactive prompt)",
             defaultValue = "${env:FINLEDGER_SANDBOX_CLIENT_SECRET:-}")
     String clientSecret;
 
     @Option(names = "--tenant-id", description = "Sandbox only: mint JWT for this seeded tenant UUID")
     String tenantId;
 
+    @Option(names = "--dump", description = "Sandbox dump file to read clientSecret from",
+            defaultValue = "config/sandbox-ready.txt")
+    Path dumpPath;
+
     @Override
     public Integer call() throws Exception {
-        if (clientSecret == null || clientSecret.isBlank()) {
-            System.err.println("Missing --client-secret (or FINLEDGER_SANDBOX_CLIENT_SECRET). See config/sandbox-ready.txt");
+        String secret = clientSecret;
+        if (secret == null || secret.isBlank()) {
+            secret = System.getenv("FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_CLIENT_SECRET");
+        }
+        if (secret == null || secret.isBlank()) {
+            secret = CliPrompts.readSandboxClientSecret(dumpPath).orElse(null);
+        }
+        secret = CliPrompts.requireSecret(secret, "Client secret").orElse(null);
+        if (secret == null || secret.isBlank()) {
+            System.err.println("Missing client secret.");
+            System.err.println("Pass --client-secret, set FINLEDGER_SANDBOX_CLIENT_SECRET");
+            System.err.println("(or FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_CLIENT_SECRET),");
+            System.err.println("or run interactively (TTY) / ensure " + dumpPath + " has clientSecret=.");
             return 1;
         }
+
+        if (tenantId == null || tenantId.isBlank()) {
+            if (CliPrompts.isInteractive()) {
+                String maybe = CliPrompts.optionalLine(null, "Tenant id (optional, sandbox)", "");
+                if (maybe != null && !maybe.isBlank()) {
+                    tenantId = maybe;
+                }
+            }
+        }
+
         GlobalOptions globals = CliSupport.globals(spec);
         String base = globals.baseUrl.endsWith("/")
                 ? globals.baseUrl.substring(0, globals.baseUrl.length() - 1)
@@ -63,7 +90,7 @@ class AuthTokenCommand implements Callable<Integer> {
         bodyJson.append("{\"grant_type\":\"client_credentials\",\"client_id\":\"")
                 .append(clientId)
                 .append("\",\"client_secret\":\"")
-                .append(clientSecret)
+                .append(secret)
                 .append('"');
         if (tenantId != null && !tenantId.isBlank()) {
             bodyJson.append(",\"tenant_id\":\"").append(tenantId.trim()).append('"');

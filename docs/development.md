@@ -59,7 +59,7 @@ PRs are human-owned (agents do not open them unless asked).
 
 Work proceeds **one ticket at a time** with human PR gates. After each merge, continue
 manual/E2E validation for that ticket. **FL-190** (end of track) delivers the
-copy-paste [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md) instructions as if a
+copy-paste [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) instructions as if a
 fintech CTO were integrating FinLedger into their stack. Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 Auth target: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 

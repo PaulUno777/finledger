@@ -10,6 +10,7 @@ import java.util.concurrent.Callable;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pauluno.finledger.cli.CliPrompts;
 import com.pauluno.finledger.cli.CliSupport;
 import com.pauluno.finledger.cli.GlobalOptions;
 
@@ -31,20 +32,22 @@ public class PlatformCommand implements Runnable {
     }
 }
 
-@Command(name = "bootstrap", description = "POST /api/v1/platform/bootstrap (one-shot platform:admin JWT)")
+@Command(name = "bootstrap", description = "POST /api/v1/platform/bootstrap; prompts for secret on TTY")
 class PlatformBootstrapCommand implements Callable<Integer> {
 
     @Spec
     CommandSpec spec;
 
-    @Option(names = "--secret", description = "Bootstrap secret (env: FINLEDGER_PLATFORM_BOOTSTRAP_SECRET)",
+    @Option(names = "--secret", description = "Bootstrap secret (env or interactive prompt)",
             defaultValue = "${env:FINLEDGER_PLATFORM_BOOTSTRAP_SECRET:-}")
     String secret;
 
     @Override
     public Integer call() throws Exception {
+        secret = CliPrompts.requireSecret(secret, "Platform bootstrap secret").orElse(null);
         if (secret == null || secret.isBlank()) {
-            System.err.println("Missing --secret (or FINLEDGER_PLATFORM_BOOTSTRAP_SECRET).");
+            System.err.println("Missing bootstrap secret.");
+            System.err.println("Pass --secret, set FINLEDGER_PLATFORM_BOOTSTRAP_SECRET, or run on a TTY to be prompted.");
             return 1;
         }
         GlobalOptions globals = CliSupport.globals(spec);
@@ -75,7 +78,7 @@ class PlatformBootstrapCommand implements Callable<Integer> {
         System.out.println(token);
         long expiresIn = parsed.path("expires_in").asLong(-1);
         if (expiresIn > 0) {
-            System.err.println("# expires_in=" + expiresIn + "s — use once to POST /tenants with optional id");
+            System.err.println("# expires_in=" + expiresIn + "s — export as FINLEDGER_TOKEN, then: tenant create");
         }
         return 0;
     }

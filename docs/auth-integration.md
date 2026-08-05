@@ -12,7 +12,7 @@ Operator axes (ADR-016):
 | Issuer | `internal` \| `external` |
 
 Design: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md). End-to-end developer
-guide: [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md). Config: [configuration.md](configuration.md).
+guide: [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md). Config: [configuration.md](configuration.md).
 
 ## Sandbox vs normal
 

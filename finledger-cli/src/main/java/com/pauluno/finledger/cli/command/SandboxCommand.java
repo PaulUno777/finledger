@@ -6,10 +6,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.Callable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.pauluno.finledger.cli.CliPrompts;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -43,7 +44,7 @@ class SandboxInitCommand implements Callable<Integer> {
     public Integer call() throws IOException {
         String chosen = scenario;
         if (chosen == null || chosen.isBlank()) {
-            if (System.console() == null) {
+            if (!CliPrompts.isInteractive()) {
                 System.err.println("Missing --scenario (required when stdin is not a TTY).");
                 System.err.println("Example: finledger-cli sandbox init --scenario aggregator");
                 return 1;
@@ -71,12 +72,11 @@ class SandboxInitCommand implements Callable<Integer> {
         System.out.println("  1) simple      — EcoPay + two USD wallets (default UUID contract)");
         System.out.println("  2) aggregator  — EcoPay Network + Send Tunnel sub-merchant");
         System.out.println("  3) remittance  — Send Tunnel Remit USD+EUR wallets");
-        System.out.print("Scenario [simple]: ");
-        String line = System.console().readLine();
+        String line = CliPrompts.optionalLine(null, "Scenario", "simple");
         if (line == null || line.isBlank()) {
             return "simple";
         }
-        String trimmed = line.trim().toLowerCase(Locale.ROOT);
+        String trimmed = CliPrompts.normalizeLower(line);
         return switch (trimmed) {
             case "1", "simple" -> "simple";
             case "2", "aggregator" -> "aggregator";
@@ -89,7 +89,7 @@ class SandboxInitCommand implements Callable<Integer> {
         if (raw == null || raw.isBlank()) {
             return null;
         }
-        String n = raw.trim().toLowerCase(Locale.ROOT);
+        String n = CliPrompts.normalizeLower(raw);
         return switch (n) {
             case "simple", "aggregator", "remittance" -> n;
             default -> null;

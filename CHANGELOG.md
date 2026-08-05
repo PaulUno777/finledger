@@ -14,16 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Audit hash chain: truncate `occurredAt` to microseconds so integrity verify survives Postgres `TIMESTAMPTZ` round-trips (CI on Linux clocks)
 - CLI shade plugin: override Boot parent merge so `./mvnw verify` can package the runnable jar
 
+### Changed
+
+- Integration guide rewritten as a standalone CLI-first loop (sandbox and normal share
+  up → token → API); CLI prompts on TTY for secrets and missing tenant fields
+  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
+
 ### Added
 
 - Platform bootstrap (FL-158): one-shot `POST /api/v1/platform/bootstrap` +
   `platform:admin` JWT (no `tenant_id`); optional client-supplied tenant `id` on
   create; CLI `platform bootstrap`; ADR-016 addendum
-  ([INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md) §4.2)
+  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) §3)
 - Richer sandbox scenarios (FL-157): packs `simple`|`aggregator`|`remittance` via
   `FINLEDGER_SANDBOX_SCENARIO`, EcoPay/Send Tunnel demo labels, CLI `sandbox init`,
   optional mint `tenant_id` for any seeded sandbox tenant; persistent issuer rejects
-  body `tenant_id` with 400 ([INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md))
+  body `tenant_id` with 400 ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
 - Persistent internal JWT issuer (FL-156): durable PKCS#8 signing key + tenant-bound
   `clients[]` for `normal`+`issuer=internal`; sandbox stays ephemeral; shared
   `InternalJwtIssuer` mint/JWKS surface ([auth-integration.md](docs/auth-integration.md),
