@@ -4,6 +4,7 @@ import com.pauluno.finledger.cli.command.AccountCommand;
 import com.pauluno.finledger.cli.command.AuthCommand;
 import com.pauluno.finledger.cli.command.ConfigCommand;
 import com.pauluno.finledger.cli.command.FxCommand;
+import com.pauluno.finledger.cli.command.SandboxCommand;
 import com.pauluno.finledger.cli.command.ShellCommand;
 import com.pauluno.finledger.cli.command.SplitRulesCommand;
 import com.pauluno.finledger.cli.command.TenantCommand;
@@ -31,6 +32,7 @@ import picocli.CommandLine.Mixin;
                 ShellCommand.class,
                 ConfigCommand.class,
                 AuthCommand.class,
+                SandboxCommand.class,
                 StatusCommand.class,
                 DoctorCommand.class,
                 UpCommand.class,

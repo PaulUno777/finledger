@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 
@@ -104,7 +105,12 @@ public final class PersistentInternalIssuer implements InternalJwtIssuer {
     }
 
     @Override
-    public AccessToken mintAccessToken(String clientId, String clientSecret) {
+    public AccessToken mintAccessToken(String clientId, String clientSecret, UUID tenantIdOrNull) {
+        if (tenantIdOrNull != null) {
+            throw new TenantIdNotAllowedException(
+                    "tenant_id must not be passed for the persistent internal issuer; "
+                            + "tenant is bound to client credentials");
+        }
         InternalClientCredentials client = clientsById.get(clientId);
         if (client == null || !client.clientSecret().equals(clientSecret)) {
             throw new InvalidClientCredentialsException("Invalid client_id or client_secret");

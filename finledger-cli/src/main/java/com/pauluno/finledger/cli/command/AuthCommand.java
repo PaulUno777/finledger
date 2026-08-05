@@ -46,6 +46,9 @@ class AuthTokenCommand implements Callable<Integer> {
             defaultValue = "${env:FINLEDGER_SANDBOX_CLIENT_SECRET:-}")
     String clientSecret;
 
+    @Option(names = "--tenant-id", description = "Sandbox only: mint JWT for this seeded tenant UUID")
+    String tenantId;
+
     @Override
     public Integer call() throws Exception {
         if (clientSecret == null || clientSecret.isBlank()) {
@@ -56,9 +59,17 @@ class AuthTokenCommand implements Callable<Integer> {
         String base = globals.baseUrl.endsWith("/")
                 ? globals.baseUrl.substring(0, globals.baseUrl.length() - 1)
                 : globals.baseUrl;
-        String body = """
-                {"grant_type":"client_credentials","client_id":"%s","client_secret":"%s"}
-                """.formatted(clientId, clientSecret).trim();
+        StringBuilder bodyJson = new StringBuilder(160);
+        bodyJson.append("{\"grant_type\":\"client_credentials\",\"client_id\":\"")
+                .append(clientId)
+                .append("\",\"client_secret\":\"")
+                .append(clientSecret)
+                .append('"');
+        if (tenantId != null && !tenantId.isBlank()) {
+            bodyJson.append(",\"tenant_id\":\"").append(tenantId.trim()).append('"');
+        }
+        bodyJson.append('}');
+        String body = bodyJson.toString();
         HttpRequest request = HttpRequest.newBuilder(URI.create(base + "/api/v1/auth/token"))
                 .timeout(Duration.ofSeconds(30))
                 .header("Content-Type", "application/json")
@@ -69,18 +80,19 @@ class AuthTokenCommand implements Callable<Integer> {
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             System.err.println("HTTP " + response.statusCode() + ": " + response.body());
-            System.err.println("Hint: sandbox/internal issuer only. For normal+OIDC, set FINLEDGER_TOKEN from your IdP.");
+            System.err.println("Hint: sandbox/internal issuer only. For normal+external IdP, set FINLEDGER_TOKEN from your IdP.");
+            System.err.println("Hint: --tenant-id is sandbox-only; persistent internal issuer rejects body tenant_id (400).");
             return 1;
         }
         ObjectMapper mapper = new ObjectMapper();
-        JsonNode json = mapper.readTree(response.body());
-        String token = json.path("access_token").asText(null);
+        JsonNode parsed = mapper.readTree(response.body());
+        String token = parsed.path("access_token").asText(null);
         if (token == null || token.isBlank()) {
             System.err.println("Response missing access_token: " + response.body());
             return 1;
         }
         System.out.println(token);
-        long expiresIn = json.path("expires_in").asLong(-1);
+        long expiresIn = parsed.path("expires_in").asLong(-1);
         if (expiresIn > 0) {
             System.err.println("# expires_in=" + expiresIn + "s — remint before expiry (sandbox/internal only)");
         }

@@ -41,7 +41,7 @@ class EphemeralInternalIssuerTest {
 
     @Test
     void should_mint_and_decode_token_with_tenant_and_scopes() {
-        InternalJwtIssuer.AccessToken token = issuer.mintAccessToken("sandbox", "test-secret");
+        InternalJwtIssuer.AccessToken token = issuer.mintAccessToken("sandbox", "test-secret", null);
         Jwt jwt = issuer.jwtDecoder().decode(token.value());
 
         assertThat(jwt.getIssuer().toString()).isEqualTo(issuer.issuer());
@@ -55,7 +55,7 @@ class EphemeralInternalIssuerTest {
 
     @Test
     void should_reject_invalid_client_secret() {
-        assertThatThrownBy(() -> issuer.mintAccessToken("sandbox", "wrong"))
+        assertThatThrownBy(() -> issuer.mintAccessToken("sandbox", "wrong", null))
                 .isInstanceOf(InvalidClientCredentialsException.class);
     }
 
@@ -109,8 +109,18 @@ class EphemeralInternalIssuerTest {
     @Test
     void decoder_should_accept_freshly_minted_token() {
         JwtDecoder decoder = issuer.jwtDecoder();
-        String token = issuer.mintAccessToken(issuer.clientId(), issuer.clientSecret()).value();
+        String token = issuer.mintAccessToken(issuer.clientId(), issuer.clientSecret(), null).value();
         assertThat(decoder.decode(token).getSubject()).isEqualTo("sandbox");
+    }
+
+    @Test
+    void should_mint_with_explicit_tenant_override() {
+        java.util.UUID other = java.util.UUID.fromString("00000000-0000-0000-0000-000000000099");
+        InternalJwtIssuer.AccessToken token =
+                issuer.mintAccessToken("sandbox", "test-secret", other);
+        Jwt jwt = issuer.jwtDecoder().decode(token.value());
+        assertThat(jwt.getClaimAsString(TenantClaimAuthorizationFilter.TENANT_ID_CLAIM))
+                .isEqualTo(other.toString());
     }
 
     @Test

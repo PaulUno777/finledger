@@ -41,7 +41,7 @@ finledger.security.issuer = internal | external
 
 | Profile | When to use | Issuer default | Seeded data |
 |---------|-------------|----------------|-------------|
-| **`sandbox`** | Local eval, demos, onboarding | `internal` (ephemeral keys each boot) | Yes — `simple` pack: fixed tenant + two USD wallets (`SandboxIds`) |
+| **`sandbox`** | Local eval, demos, onboarding | `internal` (ephemeral keys each boot) | Yes — scenario packs via `FINLEDGER_SANDBOX_SCENARIO` (`simple` default: EcoPay + `SandboxIds`) |
 | **`normal`** | Staging / production / IDE against real IdP | `external` (your OIDC JWKS) | No — you create tenants |
 
 Richer demo packs (aggregator hierarchy, remittance / multi-currency, branded labels)
@@ -66,6 +66,10 @@ git clone https://github.com/PaulUno777/finledger.git
 cd finledger
 cp finledger.env.example .env
 
+# Optional: pick a seed pack (default simple). Writes FINLEDGER_SANDBOX_SCENARIO into .env
+./bin/finledger-cli sandbox init --scenario simple
+# interactive TTY: omit --scenario and choose 1/2/3
+
 # Build + start Postgres + sandbox app
 ./bin/finledger-cli up --profile sandbox --build
 # equivalent: docker compose --profile sandbox up -d --build
@@ -73,6 +77,16 @@ cp finledger.env.example .env
 ./bin/finledger-cli doctor
 ./bin/finledger-cli status
 ```
+
+### Scenario packs (`FINLEDGER_SANDBOX_SCENARIO`)
+
+| Scenario | Demo labels | What is seeded |
+|----------|-------------|----------------|
+| **`simple`** (default) | EcoPay | Standalone tenant + two USD merchant wallets (`SandboxIds` UUIDs) |
+| **`aggregator`** | EcoPay Network + Send Tunnel | Aggregator + SUB_MERCHANT, pool/fee + USD wallets |
+| **`remittance`** | Send Tunnel Remit | Standalone + USD and EUR wallets |
+
+Stable UUIDs for non-simple packs live in `SandboxScenarioIds`. Restart the sandbox app after changing scenario.
 
 Wait until health is up:
 
@@ -93,6 +107,12 @@ TOKEN=$(./bin/finledger-cli auth token \
   --client-id sandbox \
   --client-secret "$CLIENT_SECRET")
 echo "$TOKEN" | cut -c1-40   # should look like eyJ...
+
+# Optional: mint for any seeded tenant (sandbox only; must exist in DB)
+TOKEN=$(./bin/finledger-cli auth token \
+  --client-id sandbox \
+  --client-secret "$CLIENT_SECRET" \
+  --tenant-id 00000000-0000-0000-0000-0000000000a2)   # e.g. Send Tunnel under aggregator
 ```
 
 Or raw HTTP:
@@ -100,8 +120,10 @@ Or raw HTTP:
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/auth/token \
   -H 'Content-Type: application/json' \
-  -d "{\"grant_type\":\"client_credentials\",\"client_id\":\"sandbox\",\"client_secret\":\"$CLIENT_SECRET\"}"
+  -d "{\"grant_type\":\"client_credentials\",\"client_id\":\"sandbox\",\"client_secret\":\"$CLIENT_SECRET\",\"tenant_id\":\"00000000-0000-0000-0000-000000000001\"}"
 ```
+
+On the **persistent** internal issuer (`normal`+`internal`), passing `tenant_id` in the mint body is rejected with HTTP **400** `tenant_id_not_allowed` — tenant is bound to the client record only.
 
 Unauthenticated API calls must fail:
 
@@ -116,13 +138,15 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 ### 3.2 Post a journal entry
 
-Seeded IDs (stable across boots):
+Seeded IDs for **`simple`** (stable across boots):
 
 | Resource | UUID |
 |----------|------|
-| Tenant | `00000000-0000-0000-0000-000000000001` |
+| Tenant (EcoPay) | `00000000-0000-0000-0000-000000000001` |
 | From account | `00000000-0000-0000-0000-000000000010` |
 | To account | `00000000-0000-0000-0000-000000000011` |
+
+For `aggregator` / `remittance`, copy IDs from `config/sandbox-ready.txt`.
 
 ```bash
 TENANT=00000000-0000-0000-0000-000000000001

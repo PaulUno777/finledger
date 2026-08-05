@@ -2,7 +2,9 @@ package com.pauluno.finledger.infrastructure.security.internal;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.pauluno.finledger.application.port.out.TenantRepository;
 
 /**
  * In-box mint + JWKS (sandbox ephemeral or normal persistent). See docs/auth-integration.md.
@@ -27,9 +30,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class InternalAuthController {
 
     private final InternalJwtIssuer issuer;
+    private final ObjectProvider<TenantRepository> tenantRepository;
 
-    public InternalAuthController(InternalJwtIssuer issuer) {
+    public InternalAuthController(
+            InternalJwtIssuer issuer,
+            ObjectProvider<TenantRepository> tenantRepository
+    ) {
         this.issuer = issuer;
+        this.tenantRepository = tenantRepository;
     }
 
     @GetMapping(value = "/jwks", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -46,16 +54,29 @@ public class InternalAuthController {
             @RequestBody(required = false) TokenRequest jsonBody,
             @RequestParam(value = "grant_type", required = false) String formGrantType,
             @RequestParam(value = "client_id", required = false) String formClientId,
-            @RequestParam(value = "client_secret", required = false) String formClientSecret
+            @RequestParam(value = "client_secret", required = false) String formClientSecret,
+            @RequestParam(value = "tenant_id", required = false) String formTenantId
     ) {
         String grantType = firstNonBlank(jsonBody == null ? null : jsonBody.grantType, formGrantType);
         String clientId = firstNonBlank(jsonBody == null ? null : jsonBody.clientId, formClientId);
         String clientSecret = firstNonBlank(jsonBody == null ? null : jsonBody.clientSecret, formClientSecret);
+        String tenantRaw = firstNonBlank(jsonBody == null ? null : jsonBody.tenantId, formTenantId);
 
         if (grantType != null && !grantType.isBlank() && !"client_credentials".equals(grantType)) {
             throw new UnsupportedGrantTypeException("Only grant_type=client_credentials is supported");
         }
-        InternalJwtIssuer.AccessToken accessToken = issuer.mintAccessToken(clientId, clientSecret);
+
+        UUID tenantOverride = parseTenantId(tenantRaw);
+        if (issuer instanceof EphemeralInternalIssuer && tenantOverride != null) {
+            TenantRepository repo = tenantRepository.getIfAvailable();
+            if (repo == null || repo.findById(tenantOverride).isEmpty()) {
+                throw new UnknownSandboxTenantException(
+                        "Unknown sandbox tenant_id: " + tenantOverride);
+            }
+        }
+
+        InternalJwtIssuer.AccessToken accessToken =
+                issuer.mintAccessToken(clientId, clientSecret, tenantOverride);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("access_token", accessToken.value());
         body.put("token_type", "Bearer");
@@ -76,6 +97,35 @@ public class InternalAuthController {
         return Map.of("error", "unsupported_grant_type", "error_description", ex.getMessage());
     }
 
+    @ExceptionHandler(TenantIdNotAllowedException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> tenantIdNotAllowed(TenantIdNotAllowedException ex) {
+        return Map.of("error", "tenant_id_not_allowed", "error_description", ex.getMessage());
+    }
+
+    @ExceptionHandler(UnknownSandboxTenantException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> unknownTenant(UnknownSandboxTenantException ex) {
+        return Map.of("error", "unknown_tenant", "error_description", ex.getMessage());
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, String> badRequest(IllegalArgumentException ex) {
+        return Map.of("error", "invalid_request", "error_description", ex.getMessage());
+    }
+
+    private static UUID parseTenantId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(raw.trim());
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("tenant_id must be a UUID");
+        }
+    }
+
     private static String firstNonBlank(String a, String b) {
         if (a != null && !a.isBlank()) {
             return a;
@@ -91,6 +141,8 @@ public class InternalAuthController {
         public String clientId;
         @JsonProperty("client_secret")
         public String clientSecret;
+        @JsonProperty("tenant_id")
+        public String tenantId;
     }
 
     static final class UnsupportedGrantTypeException extends RuntimeException {

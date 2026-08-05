@@ -83,6 +83,7 @@ services:
       FINLEDGER_SECURITY_ISSUER: internal
       FINLEDGER_SANDBOX_DUMP_PATH: /workspace/config/sandbox-ready.txt
       FINLEDGER_SANDBOX_BASE_URL: http://localhost:8080
+      FINLEDGER_SANDBOX_SCENARIO: ${FINLEDGER_SANDBOX_SCENARIO:-simple}
       DB_URL: jdbc:postgresql://postgres:5432/finledger
       DB_USERNAME: finledger_app
       DB_PASSWORD: finledger
