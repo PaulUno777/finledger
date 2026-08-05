@@ -78,12 +78,24 @@ already exists in the DB (unknown → `400 unknown_tenant`). Default claim is
 leaked secret cannot mint tokens for arbitrary tenants. Passing `tenant_id` in the mint
 body is rejected with **`400 tenant_id_not_allowed`** (never silently ignored).
 
+**Platform bootstrap (FL-158):** for empty-DB cold-start, set
+`FINLEDGER_PLATFORM_BOOTSTRAP_SECRET`, call `POST /api/v1/platform/bootstrap` (or
+`./bin/finledger-cli platform bootstrap`). Returns a short JWT with scope
+`platform:admin` and **no** `tenant_id` claim. Use it once to
+`POST /api/v1/tenants` with optional `id` matching your client binding. Second bootstrap
+→ **410**. Blank secret → **404**. `platform:admin` does not authorize ledger
+data-plane routes.
+
 ## CLI: when `auth token` applies
 
 ```bash
 # Sandbox / internal issuer only
 ./bin/finledger-cli auth token --client-id sandbox --client-secret '<from dump>'
 ./bin/finledger-cli auth token --client-secret '<from dump>' --tenant-id '<seeded-uuid>'
+
+# IdP-less normal cold-start
+./bin/finledger-cli platform bootstrap --secret "$FINLEDGER_PLATFORM_BOOTSTRAP_SECRET"
+./bin/finledger-cli tenant create --name Acme --type STANDALONE --id "$TENANT"
 
 # Pick scenario before compose up (writes .env)
 ./bin/finledger-cli sandbox init --scenario aggregator

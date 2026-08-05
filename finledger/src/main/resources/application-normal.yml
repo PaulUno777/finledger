@@ -32,3 +32,8 @@ finledger:
       #     client-secret: ${FINLEDGER_INTERNAL_CLIENT_SECRET}
       #     tenant-id: 00000000-0000-0000-0000-0000000000aa
       #     scopes: ledger:read ledger:write ledger:admin
+
+  # FL-158: IdP-less cold-start (normal + issuer=internal only). Blank → endpoint 404.
+  platform:
+    bootstrap-secret: ${FINLEDGER_PLATFORM_BOOTSTRAP_SECRET:}
+    bootstrap-token-ttl: ${FINLEDGER_PLATFORM_BOOTSTRAP_TOKEN_TTL:15m}

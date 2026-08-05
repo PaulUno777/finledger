@@ -52,7 +52,14 @@ public class CreateTenantService implements CreateTenantUseCase {
                     type + " must not have a parent");
         }
 
-        Tenant tenant = new Tenant(UUID.randomUUID(), type, parentId, command.name());
+        UUID tenantId = command.id() == null ? UUID.randomUUID() : command.id();
+        if (command.id() != null && tenantRepository.findById(tenantId).isPresent()) {
+            throw new BusinessRuleException(
+                    "TENANT_ID_CONFLICT",
+                    "Tenant already exists: " + tenantId);
+        }
+
+        Tenant tenant = new Tenant(tenantId, type, parentId, command.name());
         Tenant saved = tenantRepository.save(tenant);
 
         List<UUID> ancestors = new ArrayList<>();

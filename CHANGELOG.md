@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Platform bootstrap (FL-158): one-shot `POST /api/v1/platform/bootstrap` +
+  `platform:admin` JWT (no `tenant_id`); optional client-supplied tenant `id` on
+  create; CLI `platform bootstrap`; ADR-016 addendum
+  ([INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md) §4.2)
 - Richer sandbox scenarios (FL-157): packs `simple`|`aggregator`|`remittance` via
   `FINLEDGER_SANDBOX_SCENARIO`, EcoPay/Send Tunnel demo labels, CLI `sandbox init`,
   optional mint `tenant_id` for any seeded sandbox tenant; persistent issuer rejects

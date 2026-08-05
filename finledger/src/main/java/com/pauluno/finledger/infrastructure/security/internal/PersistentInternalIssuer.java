@@ -118,6 +118,13 @@ public final class PersistentInternalIssuer implements InternalJwtIssuer {
         return support.mint(client);
     }
 
+    /**
+     * One-shot control-plane JWT: {@code platform:admin}, no {@code tenant_id} (FL-158).
+     */
+    public AccessToken mintPlatformAdminToken(UUID jti, Duration ttl) {
+        return support.mintPlatformAdmin(jti, ttl);
+    }
+
     private static RSAKey buildRsaKey(String privateKeyPem, String publicKeyPem) {
         try {
             RSAPrivateKey privateKey = parsePrivateKey(privateKeyPem);

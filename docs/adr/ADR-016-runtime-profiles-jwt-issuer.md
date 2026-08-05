@@ -129,7 +129,7 @@ mapped during FL-154–FL-156:
 - Dropping Hub releases or the JAR escape hatch
 - Rewriting the CLI in another language
 - Richer sandbox scenario packs (FL-157)
-- IdP-less cold-start / `platform:admin` bootstrap (FL-158 — planned)
+- ~~IdP-less cold-start / `platform:admin` bootstrap (FL-158 — planned)~~ → see FL-158 addendum below
 
 ## FL-156 delivery note
 
@@ -137,11 +137,33 @@ Persistent internal issuer for `normal`/CI: durable PKCS#8 signing key +
 **client-bound** `tenant_id` list (`finledger.security.internal.clients[]`). Sandbox
 remains ephemeral keys + `SandboxIds`.
 
-**Known gap (deferred to FL-158):** client→tenant mint assumes the tenant UUID already
-exists. `POST /api/v1/tenants` assigns a random id, so IdP-less cold start cannot align
-the bound client without a seed or future platform-admin bootstrap. Production day-0
-remains **external IdP** + `ledger:admin` → create tenant → put `tenant_id` in merchant
-tokens.
+~~**Known gap (deferred to FL-158):**~~ Closed by FL-158 (see addendum).
+
+## FL-158 addendum — platform bootstrap
+
+IdP-less cold-start for `normal` + `issuer=internal`:
+
+1. **Ceremony:** `POST /api/v1/platform/bootstrap` with body
+   `{ "bootstrap_secret": "…" }` matching `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET`.
+   Constant-time compare (SHA-256 digests + `MessageDigest.isEqual`). Blank secret →
+   **404** (disabled). Wrong secret → **401**. Already claimed → **410 Gone**
+   permanently (DB row in `platform_admin_credential`, checked at request time —
+   correct across replicas/restarts).
+2. **Returned JWT:** short TTL (capped by max token TTL), scope **`platform:admin`
+   only**, **no `tenant_id` claim** (control-plane vs data-plane). Subject
+   `platform-bootstrap`.
+3. **AuthZ:** `platform:admin` may call `POST /api/v1/tenants` (and reserved
+   `/api/v1/platform-admins/**`). It does **not** authorize tenant-scoped ledger
+   routes. `TenantClaimAuthorizationFilter` skips create-tenant and `/platform/**`
+   only.
+4. **Create with id:** optional body field `id` (UUID) on `POST /tenants` when
+   caller has `platform:admin`. `ledger:admin` passing `id` → **400**
+   `id_not_allowed` (never silent ignore). Collision → **409** `TENANT_ID_CONFLICT`.
+5. **Cold-start recipe:** set `FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_TENANT_ID` to a
+   chosen UUID, claim bootstrap, `POST /tenants` with the same `id` — **no restart**.
+6. **CLI:** `./bin/finledger-cli platform bootstrap --secret …`
+7. **Production:** remains `issuer=external` + IdP `ledger:admin` for day-0; leave
+   bootstrap secret unset.
 
 ## References
 
@@ -149,4 +171,4 @@ tokens.
 - [auth-integration.md](../auth-integration.md)
 - [ADR-008](ADR-008-oidc-resource-server.md), [ADR-014](ADR-014-security-modes.md) (superseded runtime),
   [ADR-015](ADR-015-operational-model.md), [ADR-012](ADR-012-docker-distribution.md)
-- Tickets: FL-154, FL-155, FL-156; follow-ups FL-157, FL-158; FL-153 after auth track
+- Tickets: FL-154 → FL-158; FL-153 after auth track

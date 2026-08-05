@@ -207,16 +207,19 @@ docker compose --profile with-app up -d --build
 
 ### 4.2 IdP-less local `normal` (in-box issuer)
 
-Useful for CI / local without Keycloak against a **pre-seeded** tenant UUID.
-`POST /api/v1/tenants` assigns a random id — it will **not** match
-`FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_TENANT_ID` unless you seeded that UUID.
-IdP-less cold-start (first tenant from empty DB) is **FL-158**. Production onboarding
-uses **external IdP** (§4.1 / §5).
+Useful for CI / local without Keycloak. Cold-start from an empty DB uses **platform
+bootstrap** (FL-158): one-shot `platform:admin` JWT, then create the first tenant with
+a **client-supplied UUID** that matches your internal client binding — no restart.
+
+Production onboarding uses **external IdP** (§4.1 / §5). Leave
+`FINLEDGER_PLATFORM_BOOTSTRAP_SECRET` unset in production.
 
 ```bash
 # PKCS#8 signing key (once)
 mkdir -p config
 openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out config/internal-signing.pem
+
+TENANT=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
 
 docker compose up -d
 export SPRING_PROFILES_ACTIVE=normal
@@ -225,20 +228,29 @@ export FINLEDGER_SECURITY_ISSUER=internal
 export FINLEDGER_INTERNAL_SIGNING_KEY_PATH=./config/internal-signing.pem
 export FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_CLIENT_ID=ci
 export FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_CLIENT_SECRET=dev-only-secret
-# Must match a tenant you create (or seed in tests):
-export FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_TENANT_ID=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+export FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_TENANT_ID=$TENANT
+export FINLEDGER_PLATFORM_BOOTSTRAP_SECRET=replace-me-high-entropy
 
 ./mvnw -pl finledger spring-boot:run
 ```
 
 ```bash
+# One-shot control-plane JWT (no tenant_id claim). Second call → 410 Gone.
+PLATFORM_TOKEN=$(./bin/finledger-cli platform bootstrap --secret "$FINLEDGER_PLATFORM_BOOTSTRAP_SECRET")
+
+# Create first tenant with the same UUID as the bound client (platform:admin only)
+curl -s -X POST http://localhost:8080/api/v1/tenants \
+  -H "Authorization: Bearer $PLATFORM_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"name\":\"Acme\",\"type\":\"STANDALONE\",\"id\":\"$TENANT\"}"
+
+# Merchant mint (tenant-bound) — no restart needed
 TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/token \
   -H 'Content-Type: application/json' \
   -d '{"grant_type":"client_credentials","client_id":"ci","client_secret":"dev-only-secret"}' \
   | jq -r .access_token)
 
-# JWT tenant_id claim == bound client tenant — call that tenant's APIs
-curl -s http://localhost:8080/api/v1/tenants/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/audit/integrity \
+curl -s http://localhost:8080/api/v1/tenants/$TENANT/audit/integrity \
   -H "Authorization: Bearer $TOKEN"
 ```
 

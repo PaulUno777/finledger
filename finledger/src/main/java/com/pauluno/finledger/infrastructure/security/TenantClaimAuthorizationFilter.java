@@ -34,7 +34,7 @@ public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         String path = request.getRequestURI();
-        if (isCreateTenant(request, path)) {
+        if (isCreateTenant(request, path) || isPlatformControlPlane(path)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -71,5 +71,13 @@ public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
     private static boolean isCreateTenant(HttpServletRequest request, String path) {
         return HttpMethod.POST.matches(request.getMethod())
                 && ("/api/v1/tenants".equals(path) || "/api/v1/tenants/".equals(path));
+    }
+
+    /** Control-plane routes: scope alone authorizes; no tenant_id claim (FL-158). */
+    private static boolean isPlatformControlPlane(String path) {
+        return path != null && (path.equals("/api/v1/platform")
+                || path.startsWith("/api/v1/platform/")
+                || path.equals("/api/v1/platform-admins")
+                || path.startsWith("/api/v1/platform-admins/"));
     }
 }

@@ -20,7 +20,7 @@ public class TenantCommand implements Runnable {
     }
 }
 
-@Command(name = "create", description = "POST /api/v1/tenants (requires ledger:admin)")
+@Command(name = "create", description = "POST /api/v1/tenants (ledger:admin or platform:admin)")
 class TenantCreateCommand implements Callable<Integer> {
 
     @Spec
@@ -35,12 +35,18 @@ class TenantCreateCommand implements Callable<Integer> {
     @Option(names = "--parent-id", description = "Parent tenant UUID (required for SUB_MERCHANT)")
     UUID parentId;
 
+    @Option(names = "--id", description = "Client-supplied UUID (platform:admin only; align with internal client tenant_id)")
+    UUID id;
+
     @Override
     public Integer call() {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", name);
         body.put("type", type);
         body.put("parentTenantId", parentId);
+        if (id != null) {
+            body.put("id", id);
+        }
         return CliSupport.runMutating(spec, client -> client.post("/api/v1/tenants", body));
     }
 }

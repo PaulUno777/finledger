@@ -49,9 +49,9 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-154 | ADR-016 + docs (`sandbox`/`normal`, issuer model) | `feature/FL-154-adr-016-runtime-profiles` | done (docs on develop) |
 | FL-155 | Sandbox ephemeral JWT + remove ADR-014 modes / collapse profiles | `feature/FL-155-sandbox-jwt-issuer` | done |
 | FL-156 | Persistent internal issuer for normal/CI (durable secrets) | `feature/FL-156-internal-jwt-issuer` | done |
-| FL-157 | Richer sandbox scenarios + mint for any existing sandbox tenant | `feature/FL-157-sandbox-scenarios` | ready for PR |
-| FL-158 | Platform bootstrap (`platform:admin` + one-shot JWT) for IdP-less normal | `feature/FL-158-platform-bootstrap` | pending (after FL-156; ADR-016 addendum) |
-| FL-153 | API CLI UX (tenant header, health/ready, dry-run, silent refresh) | `feature/FL-153-api-cli-ux` | pending (after FL-156) |
+| FL-157 | Richer sandbox scenarios + mint for any existing sandbox tenant | `feature/FL-157-sandbox-scenarios` | done |
+| FL-158 | Platform bootstrap (`platform:admin` + one-shot JWT) for IdP-less normal | `feature/FL-158-platform-bootstrap` | ready for PR |
+| FL-153 | API CLI UX (tenant header, health/ready, dry-run, silent refresh) | `feature/FL-153-api-cli-ux` | pending (after FL-158) |
 | FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | pending |
 | FL-170 | Hardening | `feature/FL-170-hardening` | pending |
 | FL-180 | Post-v1 official multi-lang SDKs (separate repos) | `feature/FL-180-official-sdks` | pending |
@@ -63,8 +63,8 @@ copy-paste [INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md) instructions as if a
 fintech CTO were integrating FinLedger into their stack. Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 Auth target: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 
-**Gate note:** FL-157 is complete on this branch — stop for human PR into `develop`.
-Do **not** start FL-158 or FL-153 until FL-157 is merged.
+**Gate note:** FL-158 is complete on this branch — stop for human PR into `develop`.
+Do **not** start FL-153 until FL-158 is merged.
 
 ## Phase gate checklist
 
