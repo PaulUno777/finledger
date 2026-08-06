@@ -55,8 +55,9 @@ class OpsCommandsTest {
             assertTrue(text.contains(".env missing"), text);
             assertTrue(text.contains("issuer=internal"), text);
             assertTrue(text.contains("OK  runtime profile allowed"), text);
-            // Docker daemon may be unavailable in CI; policy checks still pass.
-            assertTrue(code == 0 || code == 1, "unexpected exit " + code);
+            assertTrue(text.contains("FAIL actuator health probe") || text.contains("OK  actuator health"), text);
+            // Unreachable management URL → non-zero (FL-153); Docker may also fail in CI.
+            assertEquals(1, code);
         } finally {
             System.setOut(previous);
         }

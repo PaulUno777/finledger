@@ -1,19 +1,11 @@
 package com.pauluno.finledger.cli.command;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.time.Duration;
 import java.util.concurrent.Callable;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pauluno.finledger.cli.CliPrompts;
 import com.pauluno.finledger.cli.CliSupport;
 import com.pauluno.finledger.cli.GlobalOptions;
+import com.pauluno.finledger.cli.InternalTokenMinter;
 
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -53,7 +45,7 @@ class AuthTokenCommand implements Callable<Integer> {
 
     @Option(names = "--dump", description = "Sandbox dump file to read clientSecret from",
             defaultValue = "config/sandbox-ready.txt")
-    Path dumpPath;
+    java.nio.file.Path dumpPath;
 
     @Override
     public Integer call() throws Exception {
@@ -83,46 +75,22 @@ class AuthTokenCommand implements Callable<Integer> {
         }
 
         GlobalOptions globals = CliSupport.globals(spec);
-        String base = globals.baseUrl.endsWith("/")
-                ? globals.baseUrl.substring(0, globals.baseUrl.length() - 1)
-                : globals.baseUrl;
-        StringBuilder bodyJson = new StringBuilder(160);
-        bodyJson.append("{\"grant_type\":\"client_credentials\",\"client_id\":\"")
-                .append(clientId)
-                .append("\",\"client_secret\":\"")
-                .append(secret)
-                .append('"');
-        if (tenantId != null && !tenantId.isBlank()) {
-            bodyJson.append(",\"tenant_id\":\"").append(tenantId.trim()).append('"');
-        }
-        bodyJson.append('}');
-        String body = bodyJson.toString();
-        HttpRequest request = HttpRequest.newBuilder(URI.create(base + "/api/v1/auth/token"))
-                .timeout(Duration.ofSeconds(30))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                .build();
-        HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            System.err.println("HTTP " + response.statusCode() + ": " + response.body());
+        try {
+            InternalTokenMinter.MintResult result = InternalTokenMinter.mint(
+                    globals.baseUrl, clientId, secret, tenantId);
+            globals.acceptMint(result.accessToken(), result.expiresInSeconds());
+            globals.rememberClientCredentials(clientId, secret, tenantId);
+            System.out.println(result.accessToken());
+            if (result.expiresInSeconds() > 0) {
+                System.err.println("# expires_in=" + result.expiresInSeconds()
+                        + "s — stored in process memory for shell remint (sandbox/internal only)");
+            }
+            return 0;
+        } catch (com.pauluno.finledger.cli.ApiException e) {
+            System.err.println(e.getMessage());
             System.err.println("Hint: sandbox/internal issuer only. For normal+external IdP, set FINLEDGER_TOKEN from your IdP.");
             System.err.println("Hint: --tenant-id is sandbox-only; persistent internal issuer rejects body tenant_id (400).");
             return 1;
         }
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode parsed = mapper.readTree(response.body());
-        String token = parsed.path("access_token").asText(null);
-        if (token == null || token.isBlank()) {
-            System.err.println("Response missing access_token: " + response.body());
-            return 1;
-        }
-        System.out.println(token);
-        long expiresIn = parsed.path("expires_in").asLong(-1);
-        if (expiresIn > 0) {
-            System.err.println("# expires_in=" + expiresIn + "s — remint before expiry (sandbox/internal only)");
-        }
-        return 0;
     }
 }

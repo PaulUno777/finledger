@@ -11,7 +11,9 @@ import com.pauluno.finledger.cli.command.SplitRulesCommand;
 import com.pauluno.finledger.cli.command.TenantCommand;
 import com.pauluno.finledger.cli.ops.DoctorCommand;
 import com.pauluno.finledger.cli.ops.DownCommand;
+import com.pauluno.finledger.cli.ops.HealthCommand;
 import com.pauluno.finledger.cli.ops.LogsCommand;
+import com.pauluno.finledger.cli.ops.ReadyCommand;
 import com.pauluno.finledger.cli.ops.RestartCommand;
 import com.pauluno.finledger.cli.ops.StatusCommand;
 import com.pauluno.finledger.cli.ops.UpCommand;
@@ -35,6 +37,8 @@ import picocli.CommandLine.Mixin;
                 AuthCommand.class,
                 SandboxCommand.class,
                 PlatformCommand.class,
+                HealthCommand.class,
+                ReadyCommand.class,
                 StatusCommand.class,
                 DoctorCommand.class,
                 UpCommand.class,

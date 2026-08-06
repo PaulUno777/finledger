@@ -17,11 +17,11 @@ FinLedger is a **self-hosted multi-tenant double-entry ledger**. You call its RE
 it owns journals, idempotency, tenant isolation (Postgres RLS), and a hash-chained audit
 trail. Your stack owns UX, KYC, PSP rails, and (in production) JWT **issuance**.
 
-| FinLedger | You |
-|-----------|-----|
-| Verify every JWT (always on) | Issue JWTs in production (IdP / BFF) |
-| Journal + balances + outbox | Consume events (optional adapters) |
-| Docker Hub image for production | Configure env / secrets at the edge |
+| FinLedger                       | You                                  |
+| ------------------------------- | ------------------------------------ |
+| Verify every JWT (always on)    | Issue JWTs in production (IdP / BFF) |
+| Journal + balances + outbox     | Consume events (optional adapters)   |
+| Docker Hub image for production | Configure env / secrets at the edge  |
 
 **Hard rule:** never run profile `sandbox` with `FINLEDGER_ENV=production` (or `prod`).
 Boot refuses.
@@ -30,16 +30,16 @@ Boot refuses.
 
 ## 2. Two knobs (same CLI either way)
 
-| Knob | Values | Meaning |
-|------|--------|---------|
-| Profile | `sandbox` \| `normal` | Eval seed vs empty DB |
-| Issuer | `internal` \| `external` | Mint JWT inside FinLedger vs your IdP |
+| Knob    | Values                   | Meaning                               |
+| ------- | ------------------------ | ------------------------------------- |
+| Profile | `sandbox` \| `normal`    | Eval seed vs empty DB                 |
+| Issuer  | `internal` \| `external` | Mint JWT inside FinLedger vs your IdP |
 
-| Goal | Profile | Issuer | How you get `TOKEN` |
-|------|---------|--------|---------------------|
-| Local demo (recommended first) | `sandbox` | `internal` (forced) | `./bin/finledger-cli auth token` |
-| Local without IdP | `normal` | `internal` | `platform bootstrap` once → `tenant create` → `auth token` |
-| Staging / production | `normal` | `external` | Export JWT from your IdP/BFF → `FINLEDGER_TOKEN` |
+| Goal                           | Profile   | Issuer              | How you get `TOKEN`                                        |
+| ------------------------------ | --------- | ------------------- | ---------------------------------------------------------- |
+| Local demo (recommended first) | `sandbox` | `internal` (forced) | `./bin/finledger-cli auth token`                           |
+| Local without IdP              | `normal`  | `internal`          | `platform bootstrap` once → `tenant create` → `auth token` |
+| Staging / production           | `normal`  | `external`          | Export JWT from your IdP/BFF → `FINLEDGER_TOKEN`           |
 
 Shared after you have a token:
 
@@ -69,10 +69,19 @@ cp finledger.env.example .env
 ./bin/finledger-cli status
 ```
 
-**Normal + in-box issuer (no IdP):** set in `.env` (or export), then start Postgres + app:
+**Normal + in-box issuer (no IdP):** generate a signing key once, then pick **one** start
+path (host path ≠ container path for the PEM):
 
 ```bash
-# .env (IdP-less local)
+mkdir -p config
+test -f config/internal-signing.pem || \
+  openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out config/internal-signing.pem
+```
+
+**Path A — host JVM** (Postgres via Compose; app on the host):
+
+```bash
+# .env (IdP-less local — host paths)
 SPRING_PROFILES_ACTIVE=normal
 FINLEDGER_ENV=local
 FINLEDGER_SECURITY_ISSUER=internal
@@ -82,25 +91,44 @@ FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_CLIENT_SECRET=   # or leave and use auth t
 FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_TENANT_ID=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
 FINLEDGER_PLATFORM_BOOTSTRAP_SECRET=                   # set a high-entropy value once
 
-mkdir -p config
-test -f config/internal-signing.pem || \
-  openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt -out config/internal-signing.pem
-
-docker compose up -d
+docker compose up -d                                   # Postgres only
 ./mvnw -pl finledger spring-boot:run
-# or: docker compose --profile with-app up -d --build  (after filling the same vars)
 ```
 
-**Normal + your IdP:** same as above with `FINLEDGER_SECURITY_ISSUER=external` and
+**Path B — Compose `with-app`** (app in Docker; PEM via mounted `/workspace/config`):
+
+```bash
+# .env (IdP-less local — container paths)
+SPRING_PROFILES_ACTIVE=normal
+FINLEDGER_ENV=local
+FINLEDGER_SECURITY_ISSUER=internal
+FINLEDGER_INTERNAL_SIGNING_KEY_PATH=/workspace/config/internal-signing.pem
+FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_CLIENT_ID=ci
+FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_CLIENT_SECRET=
+FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_TENANT_ID=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+FINLEDGER_PLATFORM_BOOTSTRAP_SECRET=
+
+docker compose --profile with-app up -d --build
+```
+
+Do **not** reuse a host-relative PEM path (`./config/...`) inside `with-app` — the
+container will not resolve it. Compose defaults remain `issuer=external` /
+`FINLEDGER_ENV=production` when those keys are unset (OIDC path below).
+
+**Normal + your IdP:** set `FINLEDGER_SECURITY_ISSUER=external` and
 `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/...` — skip
 §3.2 bootstrap; put an IdP token in `FINLEDGER_TOKEN` and jump to §3.3.
+`docker compose --profile with-app up -d --build` is the usual path.
 
-Health:
+Health (management port **8081** only — `:8080/actuator/health` is not mapped → **404**):
 
 ```bash
 curl -s http://localhost:8081/actuator/health
 # {"status":"UP",...}
+# or: ./bin/finledger-cli health
 ```
+
+On **sandbox**, `POST /api/v1/platform/bootstrap` is not registered → **404** (normal+internal only).
 
 ### 3.2 Get a TOKEN (interactive)
 
@@ -156,11 +184,11 @@ OpenAPI (dev): http://localhost:8080/swagger-ui.html — click **Authorize**, pa
 
 **Sandbox `simple` pack** (stable IDs):
 
-| Resource | UUID |
-|----------|------|
+| Resource        | UUID                                   |
+| --------------- | -------------------------------------- |
 | Tenant (EcoPay) | `00000000-0000-0000-0000-000000000001` |
-| From account | `00000000-0000-0000-0000-000000000010` |
-| To account | `00000000-0000-0000-0000-000000000011` |
+| From account    | `00000000-0000-0000-0000-000000000010` |
+| To account      | `00000000-0000-0000-0000-000000000011` |
 
 Other scenarios: copy IDs from `config/sandbox-ready.txt` after boot.
 
@@ -195,11 +223,11 @@ Stop (keeps Postgres data):
 
 ## 4. Sandbox scenario packs
 
-| Scenario | Labels | Seed |
-|----------|--------|------|
-| `simple` (default) | EcoPay | Standalone + two USD wallets |
-| `aggregator` | EcoPay Network + Send Tunnel | Aggregator + sub-merchant + pool/fee |
-| `remittance` | Send Tunnel Remit | USD + EUR wallets |
+| Scenario           | Labels                       | Seed                                 |
+| ------------------ | ---------------------------- | ------------------------------------ |
+| `simple` (default) | EcoPay                       | Standalone + two USD wallets         |
+| `aggregator`       | EcoPay Network + Send Tunnel | Aggregator + sub-merchant + pool/fee |
+| `remittance`       | Send Tunnel Remit            | USD + EUR wallets                    |
 
 ```bash
 ./bin/finledger-cli sandbox init --scenario aggregator   # or omit flag and pick on TTY
@@ -221,13 +249,13 @@ client record (`400 tenant_id_not_allowed` if you try).
 
 FinLedger only **verifies** JWTs. Your IdP or BFF must **issue**:
 
-| Claim / rule | Detail |
-|--------------|--------|
-| Algorithms | `RS256` or `ES256` only |
-| `iss` | Matches configured issuer |
-| `exp` | Required; ledger also caps TTL (default 15m) |
-| `tenant_id` | Must equal `/api/v1/tenants/{tenantId}/…` |
-| Scopes | `ledger:read`, `ledger:write`, and/or `ledger:admin` |
+| Claim / rule  | Detail                                                                      |
+| ------------- | --------------------------------------------------------------------------- |
+| Algorithms    | `RS256` or `ES256` only                                                     |
+| `iss`         | Matches configured issuer                                                   |
+| `exp`         | Required; ledger also caps TTL (default 15m)                                |
+| `tenant_id`   | Must equal `/api/v1/tenants/{tenantId}/…`                                   |
+| Scopes        | `ledger:read`, `ledger:write`, and/or `ledger:admin`                        |
 | Control-plane | `platform:admin` — bootstrap / create tenant only; **no** `tenant_id` claim |
 
 Allowed BFF patterns: pass-through user token, token exchange, or machine
@@ -241,15 +269,15 @@ Production day-0: `issuer=external`, leave `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET`
 
 Last wins: embedded YAML → optional `./config/` → environment.
 
-| Variable | Typical |
-|----------|---------|
-| `SPRING_PROFILES_ACTIVE` | `sandbox` or `normal` |
-| `FINLEDGER_ENV` | `local` or `production` |
-| `FINLEDGER_SECURITY_ISSUER` | `internal` or `external` |
-| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | IdP issuer (external) |
-| `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET` | IdP-less cold-start only; blank → endpoint 404 |
-| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | App role must **not** be superuser (RLS) |
-| `MANAGEMENT_SERVER_PORT` | `8081` |
+| Variable                                               | Typical                                        |
+| ------------------------------------------------------ | ---------------------------------------------- |
+| `SPRING_PROFILES_ACTIVE`                               | `sandbox` or `normal`                          |
+| `FINLEDGER_ENV`                                        | `local` or `production`                        |
+| `FINLEDGER_SECURITY_ISSUER`                            | `internal` or `external`                       |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | IdP issuer (external)                          |
+| `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET`                  | IdP-less cold-start only; blank → endpoint 404 |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`               | App role must **not** be superuser (RLS)       |
+| `MANAGEMENT_SERVER_PORT`                               | `8081`                                         |
 
 Template: `finledger.env.example` → `.env`.
 
@@ -283,28 +311,31 @@ FinLedger (image) → Your Postgres (RLS)
 
 ## 8. Failure modes
 
-| Situation | Behavior |
-|-----------|----------|
-| Same idempotency key + same body | Replay |
-| Same key + different body | `409` |
-| Bad / missing JWT | `401` |
-| `tenant_id` ≠ path | `403` `TENANT_CLAIM_MISMATCH` |
-| Sandbox + production env | Boot failure |
-| Bootstrap already claimed | `410` |
+| Situation                                  | Behavior                      |
+| ------------------------------------------ | ----------------------------- |
+| Same idempotency key + same body           | Replay                        |
+| Same key + different body                  | `409`                         |
+| Bad / missing JWT                          | `401`                         |
+| `tenant_id` ≠ path                         | `403` `TENANT_CLAIM_MISMATCH` |
+| Sandbox + production env                   | Boot failure                  |
+| Bootstrap already claimed                  | `410`                         |
 | Mint body `tenant_id` on persistent issuer | `400` `tenant_id_not_allowed` |
+| Unmapped / disabled route (e.g. sandbox bootstrap, `:8080/actuator`) | `404` `NOT_FOUND` |
 
 ---
 
 ## 9. Day-2 CLI
 
 ```bash
-./bin/finledger-cli                 # REPL
-./bin/finledger-cli doctor
+./bin/finledger-cli                 # REPL (prints session banner; silent remint in-box only)
+./bin/finledger-cli health          # GET …/actuator/health
+./bin/finledger-cli ready           # readiness, else health UP
+./bin/finledger-cli doctor          # fails if actuator unhealthy
 ./bin/finledger-cli status
 ./bin/finledger-cli logs -f --service app-sandbox
-./bin/finledger-cli auth token      # prompts for secret on TTY
+./bin/finledger-cli auth token      # prompts for secret on TTY; stores session for remint
 ./bin/finledger-cli platform bootstrap
-./bin/finledger-cli tenant create
+./bin/finledger-cli tenant create --dry-run   # print request; no HTTP
 ./bin/finledger-cli down            # preserves Postgres data
 ```
 
@@ -312,8 +343,14 @@ Interactive rules:
 
 - **TTY:** missing secrets/fields → console prompt (`readPassword` for secrets).
 - **Non-TTY / CI:** flags or env required (no hanging prompts).
+- **Silent remint:** after `auth token` in the same process/shell, near-expiry or HTTP
+  `401` remints via stored client credentials (in-box issuer only). External IdP:
+  export `FINLEDGER_TOKEN` yourself — CLI does not refresh IdP tokens.
+- **`--dry-run`:** global on mutating API calls (`tenant` / `account` / `fx` / `split-rules`);
+  not applied to `auth token` / `platform bootstrap` (those _are_ the mint).
+- **Tenant binding:** JWT `tenant_id` claim only — no `X-FinLedger-Tenant-Id` header.
 
 ---
 
-*Living document for integrators. Keep the shared loop (up → token → API) as the
-primary path for both sandbox and normal.*
+_Living document for integrators. Keep the shared loop (up → token → API) as the
+primary path for both sandbox and normal._

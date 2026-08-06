@@ -4,15 +4,26 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import com.pauluno.finledger.cli.CliSupport;
 import com.pauluno.finledger.security.policy.RuntimeSecurityPolicy;
 
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Spec;
+import picocli.CommandLine.Model.CommandSpec;
 
 @Command(name = "doctor", description = "Local diagnostics for Compose + runtime profiles")
 public class DoctorCommand extends AbstractOpsCommand {
 
+    @Spec
+    CommandSpec spec;
+
     @Override
     public Integer call() {
+        try {
+            System.out.println(CliSupport.globals(spec).contextBanner());
+        } catch (IllegalStateException ignored) {
+            // not under FinledgerCli root
+        }
         Path root = resolveProject();
         printModeBanner(root);
         int failures = 0;
@@ -58,7 +69,13 @@ public class DoctorCommand extends AbstractOpsCommand {
             System.out.println("WARN issuer=internal with production env — prefer external IdP");
         }
 
-        probeHealth(managementUrl);
+        int health = probeHealth(managementUrl);
+        if (health != 0) {
+            System.out.println("FAIL actuator health probe");
+            failures++;
+        } else {
+            System.out.println("OK  actuator health");
+        }
         return failures == 0 ? 0 : 1;
     }
 }

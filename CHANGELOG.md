@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Compose `with-app` honors `.env` for issuer/env/signing-key path (no longer hardcodes
+  `external`/`production`, which blocked IdP-less normal+internal boot)
+- Unmapped HTTP paths return **404** `NOT_FOUND` instead of **500** (e.g. sandbox
+  `/api/v1/platform/bootstrap`, `:8080/actuator/health`)
 - Swagger/OpenAPI UI returns 401 under JWT resource server: permit `/swagger-ui/**` and
   `/v3/api-docs/**`; Bearer scheme in OpenAPI for Authorize (FL-156)
 - Audit hash chain: truncate `occurredAt` to microseconds so integrity verify survives Postgres `TIMESTAMPTZ` round-trips (CI on Linux clocks)
@@ -16,12 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Integration guide: split host JVM vs Compose `with-app` paths for normal+internal
+  (host `./config/...` vs container `/workspace/config/...`); health on `:8081`
+  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
 - Integration guide rewritten as a standalone CLI-first loop (sandbox and normal share
   up → token → API); CLI prompts on TTY for secrets and missing tenant fields
   ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
 
 ### Added
 
+- API CLI UX (FL-153): process-memory session after `auth token`, silent remint on
+  near-expiry/401 (in-box issuer only), global `--dry-run`, `health`/`ready` commands,
+  `doctor` fails on unhealthy actuator; ADR-015 drops obsolete tenant header wording
+  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) §9)
 - Platform bootstrap (FL-158): one-shot `POST /api/v1/platform/bootstrap` +
   `platform:admin` JWT (no `tenant_id`); optional client-supplied tenant `id` on
   create; CLI `platform bootstrap`; ADR-016 addendum

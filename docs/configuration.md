@@ -103,15 +103,17 @@ interactive REPL. Prod: colocate `finledger-cli.jar` with the script, or set `FI
 
 | Command | Purpose |
 |---------|---------|
-| `doctor` | Docker / compose file / `.env` / profile interlock + optional health probe |
+| `doctor` | Docker / compose / `.env` / profile interlock; **fails** if actuator unhealthy |
 | `status` | `compose ps` + `GET …/actuator/health` |
+| `health` / `ready` | Thin actuator probes (`FINLEDGER_MANAGEMENT_URL`; ready falls back to health UP) |
 | `up [--profile sandbox\|with-app] [--build]` | `docker compose up -d` |
 | `down` | `docker compose down` (no `-v` — preserves Postgres data) |
 | `sandbox init [--scenario …]` | Write `FINLEDGER_SANDBOX_SCENARIO` into `.env` (no Compose start) |
 | `platform bootstrap` | One-shot `platform:admin` JWT (FL-158; normal+internal) |
 | `restart [--service app-sandbox\|app]` | Restart app container |
 | `logs [-f] [--service …]` | Compose logs |
-| `auth token [--tenant-id]` | Mint sandbox/internal JWT only — **not** for normal+external IdP |
+| `auth token [--tenant-id]` | Mint sandbox/internal JWT; session remint in process/shell |
+| `--dry-run` (global) | Print mutating API request without sending HTTP |
 
 ### AuthN / AuthZ (JWT — always)
 
@@ -162,7 +164,8 @@ docker compose up -d
 # Sandbox eval (no OIDC) — dumps curls to ./config/sandbox-ready.txt
 docker compose --profile sandbox up -d --build
 
-# Full stack with OIDC (build image + app). Put OIDC issuer in `.env` first.
+# Full stack (build image + app). Defaults: issuer=external, FINLEDGER_ENV=production.
+# Override in `.env` for IdP (issuer-uri) or IdP-less (issuer=internal + container PEM path).
 docker compose --profile with-app up -d --build
 
 # Optional Prometheus + Grafana (see deploy/observability/)
