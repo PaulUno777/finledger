@@ -3,7 +3,8 @@
 #
 #   docker compose up -d
 #   docker compose --profile sandbox up -d --build    # in-box JWT; read config/sandbox-ready.txt
-#   docker compose --profile with-app up -d --build   # needs OIDC in .env (issuer=external)
+#   docker compose --profile with-app up -d --build   # .env drives issuer (default external+OIDC;
+#                                                     # or issuer=internal + signing key for IdP-less)
 #   docker compose --profile with-app --profile observability up -d --build
 #
 # Dev credentials below are for local evaluation only — never reuse in production.
@@ -12,7 +13,6 @@
 # Grafana (observability profile): http://localhost:3000 (admin/admin)
 
 services:
-
   postgres:
     image: postgres:17-alpine
     container_name: finledger-postgres
@@ -29,14 +29,17 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U finledger" ]
+      test: ["CMD-SHELL", "pg_isready -U finledger"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   # Start with: docker compose --profile with-app up -d --build
-  # Put OIDC issuer (or JWKS URI) in a project `.env` file, e.g.
-  #   SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
+  # Defaults below are prod-oriented (normal + external). Override via project `.env`:
+  #   IdP:     FINLEDGER_SECURITY_ISSUER=external + SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=…
+  #   IdP-less: FINLEDGER_SECURITY_ISSUER=internal + FINLEDGER_ENV=local + signing key/clients/bootstrap
+  # Signing key inside the container (volume ./config → /workspace/config):
+  #   FINLEDGER_INTERNAL_SIGNING_KEY_PATH=/workspace/config/internal-signing.pem
   app:
     profiles: ["with-app"]
     build: .
@@ -52,9 +55,10 @@ services:
       - path: .env
         required: false
     environment:
-      SPRING_PROFILES_ACTIVE: normal
-      FINLEDGER_ENV: production
-      FINLEDGER_SECURITY_ISSUER: external
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-normal}
+      FINLEDGER_ENV: ${FINLEDGER_ENV:-production}
+      FINLEDGER_SECURITY_ISSUER: ${FINLEDGER_SECURITY_ISSUER:-external}
+      FINLEDGER_INTERNAL_SIGNING_KEY_PATH: ${FINLEDGER_INTERNAL_SIGNING_KEY_PATH:-/workspace/config/internal-signing.pem}
       MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0.1"
       DB_URL: jdbc:postgresql://postgres:5432/finledger
       DB_USERNAME: finledger_app

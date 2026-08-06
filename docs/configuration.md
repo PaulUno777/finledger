@@ -164,7 +164,8 @@ docker compose up -d
 # Sandbox eval (no OIDC) — dumps curls to ./config/sandbox-ready.txt
 docker compose --profile sandbox up -d --build
 
-# Full stack with OIDC (build image + app). Put OIDC issuer in `.env` first.
+# Full stack (build image + app). Defaults: issuer=external, FINLEDGER_ENV=production.
+# Override in `.env` for IdP (issuer-uri) or IdP-less (issuer=internal + container PEM path).
 docker compose --profile with-app up -d --build
 
 # Optional Prometheus + Grafana (see deploy/observability/)
