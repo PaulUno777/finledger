@@ -41,3 +41,6 @@ must keep posting correct when fraud is off (non-presumption).
 - Positive: core posts with fraud off; adopters enable rules without domain changes
 - Trade-off: CLI does not yet expose fraud config (use REST)
 - Follow-up: external fraud engines behind the same port (FL-180-era adapters)
+- **FL-170:** `AsyncFraudHandler.onPublishedAsync` runs on a dedicated virtual-thread
+  executor **after** the outbox poller publishes — not inside the claim/publish TX.
+  HOLD remains idempotent (`fraud-hold-{journalEntryId}` + risk_decision lookup).

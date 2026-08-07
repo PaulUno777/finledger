@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.hibernate.Session;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.pauluno.finledger.application.audit.AuditRecord;
 import com.pauluno.finledger.application.port.out.AuditLogWriter;
@@ -26,6 +27,7 @@ public class JpaAuditLogWriter implements AuditLogWriter {
     }
 
     @Override
+    @Transactional
     public void append(AuditRecord record) {
         // Ensure RLS visibility for this tenant even when TX began without
         // TenantContext

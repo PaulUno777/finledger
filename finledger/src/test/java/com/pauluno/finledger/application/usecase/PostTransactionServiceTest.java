@@ -73,7 +73,8 @@ class PostTransactionServiceTest {
                     throw new UnsupportedOperationException("FX not used in these tests");
                 },
                 riskGate,
-                new NoOpLedgerMetrics()
+                new NoOpLedgerMetrics(),
+                OptimisticLockRetry.forUnitTests()
         );
 
         tenantId = UUID.randomUUID();
@@ -130,7 +131,8 @@ class PostTransactionServiceTest {
                     throw new UnsupportedOperationException("FX not used");
                 },
                 denying,
-                new NoOpLedgerMetrics()
+                new NoOpLedgerMetrics(),
+                OptimisticLockRetry.forUnitTests()
         );
 
         assertThatThrownBy(() -> service.execute(transferCommand("key-deny", "tx-deny", "-10.00", "10.00")))
@@ -327,6 +329,9 @@ class PostTransactionServiceTest {
             }
             Map<UUID, AccountBalance> after = BalanceCalculator.applyPostings(
                     accountMap, before, entry.postings());
+            // Mirror JPA adapter: re-validate on the snapshot being written
+            com.pauluno.finledger.domain.service.DoubleEntryValidator.validate(
+                    entry.postings(), accountMap, before);
             after.forEach((id, balance) -> balances.save(balance, entry.tenantId()));
             entries.add(entry);
             return entry;
