@@ -153,8 +153,9 @@ class ApiContractIntegrationTest {
     @Test
     void settlement_webhook_bad_hmac_returns_401() throws Exception {
         UUID tenantId = createTenant("contract-webhook");
+        String timestamp = String.valueOf(java.time.Instant.now().getEpochSecond());
         mockMvc.perform(post("/api/v1/tenants/{tenantId}/rails/webhooks/settlement", tenantId)
-                        .header("X-Finledger-Timestamp", "1710000000")
+                        .header("X-Finledger-Timestamp", timestamp)
                         .header("X-Finledger-Nonce", UUID.randomUUID().toString())
                         .header("X-Finledger-Signature", "deadbeef")
                         .contentType(MediaType.APPLICATION_JSON)

@@ -203,6 +203,11 @@ See [ADR-013](adr/ADR-013-observability.md).
 | `FINLEDGER_SECURITY_MAX_TOKEN_TTL` | Ledger max JWT lifetime (default `15m`) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional OTLP traces endpoint |
 | `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET` | HMAC secret for inbound rail settlement webhooks |
+| `FINLEDGER_RAIL_WEBHOOK_MAX_SKEW_SECONDS` | Anti-replay timestamp skew window (default `300`) |
+| `FINLEDGER_RATE_LIMIT_ENABLED` | In-memory Bucket4j on `/api/v1/**` (default `true`) |
+| `FINLEDGER_RATE_LIMIT_CAPACITY` / `_REFILL_PER_SECOND` | Token bucket size / refill (defaults `120` / `60`) |
+| `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` | Hikari pool (default `20`; keep well under Postgres `max_connections`) |
+| `spring.threads.virtual.enabled` | Virtual threads (default `true` in embedded `application.yaml`) |
 | `FINLEDGER_BASE_URL` | CLI only — FinLedger API base URL (default `http://localhost:8080`) |
 | `FINLEDGER_TOKEN` | CLI only — Bearer JWT for `/api/v1` |
 | `FINLEDGER_MANAGEMENT_URL` | CLI only — actuator base (default `http://localhost:8081`) |

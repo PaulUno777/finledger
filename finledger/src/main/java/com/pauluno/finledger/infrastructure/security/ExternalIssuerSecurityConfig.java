@@ -24,6 +24,7 @@ public class ExternalIssuerSecurityConfig {
     SecurityFilterChain externalIssuerSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
+                .headers(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PublicSecurityPaths.MATCHERS).permitAll()

@@ -174,7 +174,7 @@ class RailPaymentIntegrationTest {
                 "railReference", railReference,
                 "idempotencyKey", "wh-settle-" + UUID.randomUUID()
         ));
-        String timestamp = "1710000000";
+		String timestamp = String.valueOf(java.time.Instant.now().getEpochSecond());
         String nonce = UUID.randomUUID().toString();
         String signature = RailWebhookHmac.sign(WEBHOOK_SECRET, timestamp, nonce, body);
 

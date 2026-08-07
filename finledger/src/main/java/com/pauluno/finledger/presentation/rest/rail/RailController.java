@@ -22,6 +22,7 @@ import com.pauluno.finledger.application.exception.BusinessRuleException;
 import com.pauluno.finledger.application.port.in.ConfirmRailSettlementUseCase;
 import com.pauluno.finledger.application.port.in.InitiateRailPaymentUseCase;
 import com.pauluno.finledger.application.port.out.SecretsProvider;
+import com.pauluno.finledger.application.rail.RailWebhookAntiReplay;
 import com.pauluno.finledger.application.rail.RailWebhookHmac;
 
 import jakarta.validation.Valid;
@@ -35,16 +36,19 @@ public class RailController {
     private final InitiateRailPaymentUseCase initiateRailPaymentUseCase;
     private final ConfirmRailSettlementUseCase confirmRailSettlementUseCase;
     private final SecretsProvider secretsProvider;
+    private final RailWebhookAntiReplay railWebhookAntiReplay;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public RailController(
             InitiateRailPaymentUseCase initiateRailPaymentUseCase,
             ConfirmRailSettlementUseCase confirmRailSettlementUseCase,
-            SecretsProvider secretsProvider
+            SecretsProvider secretsProvider,
+            RailWebhookAntiReplay railWebhookAntiReplay
     ) {
         this.initiateRailPaymentUseCase = initiateRailPaymentUseCase;
         this.confirmRailSettlementUseCase = confirmRailSettlementUseCase;
         this.secretsProvider = secretsProvider;
+        this.railWebhookAntiReplay = railWebhookAntiReplay;
     }
 
     @PostMapping("/payments")
@@ -97,6 +101,7 @@ public class RailController {
         if (!RailWebhookHmac.matches(secret, timestamp, nonce, rawBody, signature)) {
             throw new BusinessRuleException("WEBHOOK_SIGNATURE_INVALID", "Invalid webhook HMAC signature");
         }
+        railWebhookAntiReplay.verify(timestamp, nonce);
 
         JsonNode json = objectMapper.readTree(rawBody);
         String railReference = json.path("railReference").asText(null);

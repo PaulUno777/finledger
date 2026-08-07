@@ -149,7 +149,9 @@ public class GlobalExceptionHandler {
             case "INSUFFICIENT_FUNDS" -> HttpStatus.UNPROCESSABLE_CONTENT;
             case "ACCOUNT_CLOSED", "TENANT_ID_CONFLICT" -> HttpStatus.CONFLICT;
             case "WEBHOOK_SIGNATURE_INVALID" -> HttpStatus.UNAUTHORIZED;
+            case "WEBHOOK_TIMESTAMP_SKEW", "WEBHOOK_REPLAY" -> HttpStatus.UNAUTHORIZED;
             case "WEBHOOK_SECRET_MISSING" -> HttpStatus.SERVICE_UNAVAILABLE;
+            case "RATE_LIMITED" -> HttpStatus.TOO_MANY_REQUESTS;
             default -> HttpStatus.UNPROCESSABLE_CONTENT;
         };
 

@@ -48,3 +48,6 @@ no PIT baseline or threshold yet.
   health is public only after the process starts
 - Follow-up: FL-170 adds PIT on `domain` with a real threshold; FL-150 observability
   builds on actuator already exposed on `8081` in the image
+- **FL-170 delivered:** PIT on `com.pauluno.finledger.domain.**` with
+  `mutationThreshold` 48 (measured baseline ~50%; fail gate on `mvn verify`).
+  Re-measure and raise the floor when domain tests kill more mutants.
