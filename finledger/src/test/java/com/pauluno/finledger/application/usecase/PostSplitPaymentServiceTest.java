@@ -78,7 +78,8 @@ class PostSplitPaymentServiceTest {
                 outboxWriter,
                 splitRuleSetRepository,
                 resolver,
-                riskGate
+                riskGate,
+                OptimisticLockRetry.forUnitTests()
         );
 
         tenantId = UUID.randomUUID();
@@ -294,6 +295,8 @@ class PostSplitPaymentServiceTest {
             }
             Map<UUID, AccountBalance> after = BalanceCalculator.applyPostings(
                     accountMap, before, entry.postings());
+            com.pauluno.finledger.domain.service.DoubleEntryValidator.validate(
+                    entry.postings(), accountMap, before);
             after.forEach((id, balance) -> balances.save(balance, entry.tenantId()));
             entries.add(entry);
             return entry;

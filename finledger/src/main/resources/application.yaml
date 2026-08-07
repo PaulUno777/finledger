@@ -16,6 +16,10 @@ spring:
   # SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
   # or SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
 
+  threads:
+    virtual:
+      enabled: true
+
 server:
   port: 8080
 
@@ -54,6 +58,14 @@ finledger:
       public-key-pem: ${FINLEDGER_INTERNAL_PUBLIC_KEY_PEM:}
   fraud:
     enabled: false
+  rate-limit:
+    enabled: ${FINLEDGER_RATE_LIMIT_ENABLED:true}
+    capacity: ${FINLEDGER_RATE_LIMIT_CAPACITY:120}
+    refill-per-second: ${FINLEDGER_RATE_LIMIT_REFILL_PER_SECOND:60}
+  rail:
+    webhook:
+      # Anti-replay window for X-Finledger-Timestamp (seconds)
+      max-skew-seconds: ${FINLEDGER_RAIL_WEBHOOK_MAX_SKEW_SECONDS:300}
   sandbox:
     dump-path: config/sandbox-ready.txt
     base-url: http://localhost:8080

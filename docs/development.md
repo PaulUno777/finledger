@@ -52,8 +52,8 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-157 | Richer sandbox scenarios + mint for any existing sandbox tenant | `feature/FL-157-sandbox-scenarios` | done |
 | FL-158 | Platform bootstrap (`platform:admin` + one-shot JWT) for IdP-less normal | `feature/FL-158-platform-bootstrap` | done |
 | FL-153 | API CLI UX (health/ready, dry-run, silent refresh) | `feature/FL-153-api-cli-ux` | done |
-| FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | in progress |
-| FL-170 | Hardening | `feature/FL-170-hardening` | pending |
+| FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | done |
+| FL-170 | Hardening (OL/outbox correctness, then PIT/rate-limit) | `feature/FL-170-hardening` | in progress |
 | FL-180 | Post-v1 official multi-lang SDKs (separate repos) | `feature/FL-180-official-sdks` | pending |
 | FL-190 | Finalize CTO integration runbook | `feature/FL-190-cto-integration-guide` | pending |
 
@@ -63,8 +63,8 @@ copy-paste [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) instructions as if a
 fintech CTO were integrating FinLedger into their stack. Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 Auth target: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 
-**Gate note:** FL-160 (contracts + sdk-reference) is on this branch — stop for human PR into `develop`.
-Do **not** start FL-170 until FL-160 is merged.
+**Gate note:** FL-170 (hardening) is on this branch — stop for human PR into `develop`.
+Do **not** start FL-190 until FL-170 is merged.
 
 ## Phase gate checklist
 

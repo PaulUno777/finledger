@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Optimistic-lock retries use a **new** DB transaction per attempt with backoff
+  outside the TX; balance re-read re-validates overdraft before apply (FL-170 / §8.3)
+- Outbox poller no longer runs fraud HOLD synchronously inside the claim TX —
+  `AsyncFraudHandler` uses a virtual-thread executor (FL-170 / ADR-011)
 - Compose `with-app` honors `.env` for issuer/env/signing-key path (no longer hardcodes
   `external`/`production`, which blocked IdP-less normal+internal boot)
 - Unmapped HTTP paths return **404** `NOT_FOUND` instead of **500** (e.g. sandbox
@@ -29,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Hardening (FL-170): virtual threads + Hikari pool defaults; concurrent posting IT;
+  PIT mutation gate on `domain` (threshold 48); Bucket4j in-memory rate limit;
+  rail webhook timestamp/nonce anti-replay; security headers; Dependabot;
+  [ADR-017](docs/adr/ADR-017-hardening-fl-170.md)
 - Contract tests + `/sdk-reference/` (FL-160): OpenAPI path/`operationId` snapshot
   at `docs/contracts/openapi-paths.json` with `@Tag("contract")` IT (any drift fails);
   behavioral contracts (401/409/403/bad HMAC); non-official Java reference client

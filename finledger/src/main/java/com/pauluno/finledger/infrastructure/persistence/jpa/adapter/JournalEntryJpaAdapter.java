@@ -19,6 +19,7 @@ import com.pauluno.finledger.domain.model.JournalEntry;
 import com.pauluno.finledger.domain.model.LedgerAccount;
 import com.pauluno.finledger.domain.model.Posting;
 import com.pauluno.finledger.domain.service.BalanceCalculator;
+import com.pauluno.finledger.domain.service.DoubleEntryValidator;
 import com.pauluno.finledger.infrastructure.persistence.jpa.mapper.JournalEntryMapper;
 import com.pauluno.finledger.infrastructure.persistence.jpa.repository.SpringDataJournalEntryRepository;
 
@@ -63,6 +64,8 @@ public class JournalEntryJpaAdapter implements JournalEntryRepository {
         }
 
         Map<UUID, AccountBalance> currentBalances = accountBalanceRepository.findByAccountIds(accountIds);
+        // Re-validate overdraft/sum-zero on the versioned snapshot about to be written (§8.3 / FL-170)
+        DoubleEntryValidator.validate(entry.postings(), accounts, currentBalances);
         Map<UUID, AccountBalance> nextBalances = BalanceCalculator.applyPostings(
                 accounts, currentBalances, entry.postings());
 

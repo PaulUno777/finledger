@@ -54,3 +54,5 @@ boolean ok = WebhookHmac.matches(
 ```
 
 Headers: `X-Finledger-Timestamp`, `X-Finledger-Nonce`, `X-Finledger-Signature`.
+Server also enforces a short timestamp skew window and single-use nonces (in-memory,
+single-node) — reject `WEBHOOK_TIMESTAMP_SKEW` / `WEBHOOK_REPLAY`.

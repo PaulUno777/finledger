@@ -86,6 +86,12 @@
 			<artifactId>resilience4j-circuitbreaker</artifactId>
 			<version>2.3.0</version>
 		</dependency>
+		<!-- In-memory rate limiting (plan §11 / FL-170); Redis-backed left to adopters -->
+		<dependency>
+			<groupId>com.bucket4j</groupId>
+			<artifactId>bucket4j_jdk17-core</artifactId>
+			<version>8.14.0</version>
+		</dependency>
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
@@ -185,6 +191,8 @@
 					<systemPropertyVariables>
 						<!-- FL-160: OpenAPI inventory lives at repo root docs/contracts/ -->
 						<finledger.contracts.snapshot>${maven.multiModuleProjectDirectory}/docs/contracts/openapi-paths.json</finledger.contracts.snapshot>
+						<!-- FL-170: keep ITs free of rate-limit noise; dedicated rate-limit IT re-enables -->
+						<finledger.rate-limit.enabled>false</finledger.rate-limit.enabled>
 					</systemPropertyVariables>
 				</configuration>
 			</plugin>
@@ -233,6 +241,46 @@
 								</path>
 							</annotationProcessorPaths>
 						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.pitest</groupId>
+				<artifactId>pitest-maven</artifactId>
+				<version>1.19.1</version>
+				<configuration>
+					<targetClasses>
+						<param>com.pauluno.finledger.domain.*</param>
+					</targetClasses>
+					<targetTests>
+						<param>com.pauluno.finledger.domain.*</param>
+						<param>com.pauluno.finledger.domain.*.*</param>
+					</targetTests>
+					<mutators>
+						<mutator>DEFAULTS</mutator>
+					</mutators>
+					<mutationThreshold>48</mutationThreshold>
+					<threads>4</threads>
+					<timestampedReports>false</timestampedReports>
+					<outputFormats>
+						<param>HTML</param>
+						<param>XML</param>
+					</outputFormats>
+				</configuration>
+				<dependencies>
+					<dependency>
+						<groupId>org.pitest</groupId>
+						<artifactId>pitest-junit5-plugin</artifactId>
+						<version>1.2.2</version>
+					</dependency>
+				</dependencies>
+				<executions>
+					<execution>
+						<id>mutation-domain</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>mutationCoverage</goal>
+						</goals>
 					</execution>
 				</executions>
 			</plugin>
