@@ -3,7 +3,13 @@ package com.pauluno.finledger.security.policy;
 import java.util.UUID;
 
 /**
- * Well-known sandbox identities for {@code disabled} / eval seeding (FL-151).
+ * Stable identity contract for the default ({@code simple}) sandbox seed under the
+ * {@code sandbox} profile.
+ *
+ * <p>Used by {@code SandboxBootstrap}, the ephemeral JWT issuer ({@code tenant_id} claim),
+ * dump curls, and ITs. Do not delete or randomize — copy-paste demos and tests depend on
+ * these UUIDs. Richer demo packs (aggregator / remittance) are FL-157 and keep this class
+ * as the {@code simple} pack contract.
  */
 public final class SandboxIds {
 
@@ -11,7 +17,7 @@ public final class SandboxIds {
     public static final UUID FROM_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000010");
     public static final UUID TO_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000011");
 
-    public static final String TENANT_NAME = "sandbox";
+    public static final String TENANT_NAME = "EcoPay";
     public static final String FROM_OWNER_REF = "sandbox-from";
     public static final String TO_OWNER_REF = "sandbox-to";
 

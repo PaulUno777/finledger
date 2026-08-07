@@ -1,0 +1,46 @@
+# Default non-sandbox runtime (ADR-016). Local IDE defaults against Compose Postgres.
+# Production: override via env (DB_URL, OIDC issuer) — do not commit secrets.
+
+spring:
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/finledger}
+    username: ${DB_USERNAME:finledger_app}
+    password: ${DB_PASSWORD:finledger}
+    hikari:
+      # Align with Postgres max_connections (default 100). Leave headroom for
+      # admin/Flyway/monitoring: pool ≈ (max_connections - 20) / app_instances.
+      # Single local/Compose instance → 20. Override via SPRING_DATASOURCE_HIKARI_*.
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:5}
+      connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:30000}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+    user: ${SPRING_FLYWAY_USER:finledger}
+    password: ${SPRING_FLYWAY_PASSWORD:finledger}
+
+finledger:
+  security:
+    issuer: ${FINLEDGER_SECURITY_ISSUER:external}
+    max-token-ttl: ${FINLEDGER_SECURITY_MAX_TOKEN_TTL:15m}
+    # Used when issuer=internal on profile normal (FL-156). Sandbox ignores these.
+    internal:
+      issuer-uri: ${FINLEDGER_INTERNAL_ISSUER_URI:http://localhost:8080/internal}
+      signing-key-pem: ${FINLEDGER_INTERNAL_SIGNING_KEY_PEM:}
+      signing-key-path: ${FINLEDGER_INTERNAL_SIGNING_KEY_PATH:}
+      public-key-pem: ${FINLEDGER_INTERNAL_PUBLIC_KEY_PEM:}
+      # clients:
+      #   - client-id: ci
+      #     client-secret: ${FINLEDGER_INTERNAL_CLIENT_SECRET}
+      #     tenant-id: 00000000-0000-0000-0000-0000000000aa
+      #     scopes: ledger:read ledger:write ledger:admin
+
+  # FL-158: IdP-less cold-start (normal + issuer=internal only). Blank → endpoint 404.
+  platform:
+    bootstrap-secret: ${FINLEDGER_PLATFORM_BOOTSTRAP_SECRET:}
+    bootstrap-token-ttl: ${FINLEDGER_PLATFORM_BOOTSTRAP_TOKEN_TTL:15m}

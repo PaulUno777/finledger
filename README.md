@@ -50,17 +50,23 @@ infrastructure implements ports (JPA, outbox, FX, security, …)
 
 ```bash
 git clone https://github.com/PaulUno777/finledger.git && cd finledger
+cp finledger.env.example .env
 docker compose --profile sandbox up -d --build
+# Or: ./bin/finledger-cli up --profile sandbox --build
 # Read config/sandbox-ready.txt (or container logs) for copy-paste curls
 ```
 
-Production / CTO checklist outline: [docs/INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md)
+Production / CTO checklist outline: [docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md)
 (finalized after remaining roadmap validation). Ops model: [ADR-015](docs/adr/ADR-015-operational-model.md).
+Non-official client patterns: [`sdk-reference/`](sdk-reference/) (idempotency, HMAC,
+retry, `traceparent` — no SemVer). OpenAPI path contract:
+[`docs/contracts/openapi-paths.json`](docs/contracts/openapi-paths.json).
 
-OIDC-enforced local run:
+Normal profile + OIDC local run:
 
 ```bash
 docker compose up -d
+export SPRING_PROFILES_ACTIVE=normal
 export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/realms/finledger
 ./mvnw -pl finledger spring-boot:run
 ```
@@ -83,14 +89,24 @@ docker compose --profile with-app --profile observability up -d --build
 # Prometheus :9090 · Grafana :3000 (admin/admin) · /actuator/prometheus on :8081
 ```
 
-Provisioning CLI (separate module — see [ADR-010](docs/adr/ADR-010-cli-http-client-module.md)):
+Provisioning / ops CLI (separate module — [ADR-010](docs/adr/ADR-010-cli-http-client-module.md),
+[ADR-015](docs/adr/ADR-015-operational-model.md)):
 
 ```bash
-# Sandbox mode needs no token; static-token uses the dumped secret as --token
-export FINLEDGER_TOKEN=<jwt-or-static-token>
-./mvnw -pl finledger-cli exec:java -- tenant create --name Acme --type STANDALONE
-./mvnw -pl finledger-cli exec:java -- config init --mode disabled
+# Launcher (builds jar on first use if needed). No args → interactive REPL.
+./bin/finledger-cli                 # finledger>
+./bin/finledger-cli doctor
+./bin/finledger-cli up --profile sandbox --build
+
+# API provisioning — mint JWT in sandbox, or export IdP token for normal
+./bin/finledger-cli auth token --client-secret '<from config/sandbox-ready.txt>'
+export FINLEDGER_TOKEN=<jwt>
+./bin/finledger-cli tenant create --name Acme --type STANDALONE
+./bin/finledger-cli config init --profile normal
 ```
+
+Production: place `bin/finledger-cli` (or `finledger-cli.cmd`) next to `finledger-cli.jar`,
+or set `FINLEDGER_CLI_JAR`, and put the script on `PATH`.
 
 ## Configuration
 
@@ -131,8 +147,9 @@ curl -s -X POST "http://localhost:8080/api/v1/tenants/$TENANT/journal-entries" \
 ```
 
 FL-030 note: posting currency must match each account’s currency unless an FX
-path is configured (FL-060). API routes require OIDC Bearer JWTs in `enforced`
-mode (FL-100); use Compose `sandbox` or `static-token` for local/CI eval (FL-151).
+path is configured (FL-060). API routes always require a short-lived Bearer JWT
+([ADR-016](docs/adr/ADR-016-runtime-profiles-jwt-issuer.md)); use Compose `sandbox`
+for eval or profile `normal` + your IdP for real deploys.
 
 ## Guarantees (target)
 

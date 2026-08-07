@@ -24,7 +24,7 @@ no PIT baseline or threshold yet.
    (`linux/amd64`, `linux/arm64`), push
    `${DOCKERHUB_USERNAME}/finledger:<semver>` and `:latest`, then create a GitHub
    Release from Conventional Commit subjects since the previous tag.
-4. Compose keeps Postgres + Redis on the default profile; the server image is
+4. Compose keeps Postgres on the default profile; the server image is
    under Compose profile `with-app` so local DB-only workflows stay unchanged.
 5. **PIT mutation gating is deferred to FL-170 (hardening).** Introducing a
    threshold without a measured domain baseline would either fail CI arbitrarily
@@ -48,3 +48,6 @@ no PIT baseline or threshold yet.
   health is public only after the process starts
 - Follow-up: FL-170 adds PIT on `domain` with a real threshold; FL-150 observability
   builds on actuator already exposed on `8081` in the image
+- **FL-170 delivered:** PIT on `com.pauluno.finledger.domain.**` with
+  `mutationThreshold` 48 (measured baseline ~50%; fail gate on `mvn verify`).
+  Re-measure and raise the floor when domain tests kill more mutants.

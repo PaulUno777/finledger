@@ -22,7 +22,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -46,11 +45,6 @@ class SecurityIntegrationTest {
             .withUsername("finledger")
             .withPassword("finledger");
 
-    @Container
-    static final GenericContainer<?> REDIS = new GenericContainer<>(
-            DockerImageName.parse("redis:8-alpine"))
-            .withExposedPorts(6379);
-
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
@@ -60,8 +54,6 @@ class SecurityIntegrationTest {
         registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("spring.flyway.enabled", () -> "true");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
         registry.add("finledger.outbox.poll-interval-ms", () -> "3600000");
         // Boot test customizer disables metrics export; re-enable Prometheus scrape endpoint.
         registry.add("management.defaults.metrics.export.enabled", () -> "true");
@@ -101,6 +93,14 @@ class SecurityIntegrationTest {
     @Test
     void should_allow_prometheus_without_auth() throws Exception {
         mockMvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void should_allow_swagger_ui_without_auth() throws Exception {
+        mockMvc.perform(get("/swagger-ui/index.html"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk());
     }
 

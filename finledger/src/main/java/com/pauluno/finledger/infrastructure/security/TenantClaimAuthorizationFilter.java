@@ -12,43 +12,20 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.pauluno.finledger.security.policy.SandboxIds;
-
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Ensures the caller is bound to the tenant UUID in the request path (plan §11 / FL-151).
- * <ul>
- *   <li>{@code enforced}: JWT claim {@code tenant_id}</li>
- *   <li>{@code static-token}: header {@code X-FinLedger-Tenant-Id}</li>
- *   <li>{@code disabled}: path tenant must equal the well-known sandbox tenant</li>
- * </ul>
+ * Binds JWT claim {@code tenant_id} to {@code /api/v1/tenants/{tenantId}/…} (ADR-016).
  */
 public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
 
     public static final String TENANT_ID_CLAIM = "tenant_id";
 
-    public enum TenantBindingMode {
-        JWT_CLAIM,
-        HEADER,
-        SANDBOX_ONLY
-    }
-
     private static final Pattern TENANT_SCOPED_PATH =
             Pattern.compile("^/api/v1/tenants/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(/|$)");
-
-    private final TenantBindingMode bindingMode;
-
-    public TenantClaimAuthorizationFilter() {
-        this(TenantBindingMode.JWT_CLAIM);
-    }
-
-    public TenantClaimAuthorizationFilter(TenantBindingMode bindingMode) {
-        this.bindingMode = bindingMode;
-    }
 
     @Override
     protected void doFilterInternal(
@@ -57,7 +34,7 @@ public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         String path = request.getRequestURI();
-        if (isCreateTenant(request, path)) {
+        if (isCreateTenant(request, path) || isPlatformControlPlane(path)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -69,7 +46,7 @@ public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
         }
 
         String pathTenantId = matcher.group(1);
-        if (!tenantMatches(request, pathTenantId)) {
+        if (!jwtClaimMatches(pathTenantId)) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write(
@@ -79,14 +56,6 @@ public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
-    }
-
-    private boolean tenantMatches(HttpServletRequest request, String pathTenantId) {
-        return switch (bindingMode) {
-            case JWT_CLAIM -> jwtClaimMatches(pathTenantId);
-            case HEADER -> headerMatches(request, pathTenantId);
-            case SANDBOX_ONLY -> SandboxIds.TENANT_ID.toString().equalsIgnoreCase(pathTenantId);
-        };
     }
 
     private static boolean jwtClaimMatches(String pathTenantId) {
@@ -99,13 +68,16 @@ public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
         return claimTenantId != null && !claimTenantId.isBlank() && claimTenantId.equals(pathTenantId);
     }
 
-    private static boolean headerMatches(HttpServletRequest request, String pathTenantId) {
-        String header = request.getHeader(LedgerAuthorities.TENANT_HEADER);
-        return header != null && !header.isBlank() && header.trim().equalsIgnoreCase(pathTenantId);
-    }
-
     private static boolean isCreateTenant(HttpServletRequest request, String path) {
         return HttpMethod.POST.matches(request.getMethod())
                 && ("/api/v1/tenants".equals(path) || "/api/v1/tenants/".equals(path));
+    }
+
+    /** Control-plane routes: scope alone authorizes; no tenant_id claim (FL-158). */
+    private static boolean isPlatformControlPlane(String path) {
+        return path != null && (path.equals("/api/v1/platform")
+                || path.startsWith("/api/v1/platform/")
+                || path.equals("/api/v1/platform-admins")
+                || path.startsWith("/api/v1/platform-admins/"));
     }
 }

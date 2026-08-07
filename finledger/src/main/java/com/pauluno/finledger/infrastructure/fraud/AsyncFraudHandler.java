@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,9 +22,11 @@ import com.pauluno.finledger.application.port.out.RiskDecisionRepository;
 import com.pauluno.finledger.application.port.out.TenantFraudConfigRepository;
 import com.pauluno.finledger.application.port.out.TransactionRiskCheckPort;
 import com.pauluno.finledger.application.tenant.TenantContext;
+import com.pauluno.finledger.infrastructure.messaging.EventPublisherConfig;
 
 /**
- * Async fraud scoring on TransactionPosted (plan §17). Optional HOLD when configured.
+ * Async fraud scoring on TransactionPosted (plan §17 / ADR-011). Optional HOLD when configured.
+ * HOLD is idempotent via {@code fraud-hold-{journalEntryId}} + risk_decision lookup.
  */
 @Component
 public class AsyncFraudHandler {
@@ -48,6 +51,11 @@ public class AsyncFraudHandler {
         this.fraudConfigRepository = fraudConfigRepository;
         this.riskDecisionRepository = riskDecisionRepository;
         this.holdFundsForReviewUseCase = holdFundsForReviewUseCase;
+    }
+
+    @Async(EventPublisherConfig.FRAUD_ASYNC_EXECUTOR)
+    public void onPublishedAsync(EventPublisher.PublishedEvent event) {
+        onPublished(event);
     }
 
     public void onPublished(EventPublisher.PublishedEvent event) {

@@ -44,15 +44,20 @@ class ApiClientTest {
     }
 
     @Test
-    void should_throw_api_exception_on_non_2xx() {
-        ApiClient.HttpExecutor fake = request -> new FakeResponse(403, "{\"error\":\"forbidden\"}");
-        ApiClient client = new ApiClient("http://localhost:8080", "t", "k", fake);
-
-        ApiException ex = assertThrows(ApiException.class, () ->
-                client.put("/api/v1/tenants/x/fx/config", java.util.Map.of("pivotCurrencyCode", "USD")));
-        assertEquals(403, ex.statusCode());
-        assertTrue(ex.getMessage().contains("forbidden"));
+    void should_get_without_idempotency_header() throws Exception {
+        List<HttpRequest> captured = new ArrayList<>();
+        ApiClient.HttpExecutor fake = request -> {
+            captured.add(request);
+            return new FakeResponse(200, "{\"status\":\"UP\"}");
+        };
+        ApiClient client = new ApiClient("http://localhost:8080", "jwt", "k", fake);
+        String body = client.get("/api/v1/tenants/x");
+        assertEquals(1, captured.size());
+        assertEquals("GET", captured.getFirst().method());
+        assertTrue(captured.getFirst().headers().firstValue("Idempotency-Key").isEmpty());
+        assertTrue(body.contains("UP"));
     }
+
 
     private record FakeResponse(int status, String body) implements HttpResponse<String> {
         @Override

@@ -27,19 +27,29 @@ public final class ApiClient {
     private final String baseUrl;
     private final String token;
     private final String idempotencyKey;
+    private final boolean dryRun;
     private final ObjectMapper mapper;
     private final HttpExecutor http;
 
     public ApiClient(String baseUrl, String token, String idempotencyKey) {
-        this(baseUrl, token, idempotencyKey, defaultExecutor());
+        this(baseUrl, token, idempotencyKey, false, defaultExecutor());
+    }
+
+    public ApiClient(String baseUrl, String token, String idempotencyKey, boolean dryRun) {
+        this(baseUrl, token, idempotencyKey, dryRun, defaultExecutor());
     }
 
     ApiClient(String baseUrl, String token, String idempotencyKey, HttpExecutor http) {
+        this(baseUrl, token, idempotencyKey, false, http);
+    }
+
+    ApiClient(String baseUrl, String token, String idempotencyKey, boolean dryRun, HttpExecutor http) {
         this.baseUrl = trimTrailingSlash(Objects.requireNonNull(baseUrl, "baseUrl"));
         this.token = token;
         this.idempotencyKey = (idempotencyKey == null || idempotencyKey.isBlank())
                 ? UUID.randomUUID().toString()
                 : idempotencyKey;
+        this.dryRun = dryRun;
         this.http = Objects.requireNonNull(http, "http");
         this.mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
@@ -54,39 +64,69 @@ public final class ApiClient {
         return idempotencyKey;
     }
 
+    public boolean dryRun() {
+        return dryRun;
+    }
+
+    public String get(String path) throws Exception {
+        return exchange("GET", path, null, false);
+    }
+
     public String post(String path, Object body) throws Exception {
-        return exchange("POST", path, body);
+        return exchange("POST", path, body, true);
     }
 
     public String put(String path, Object body) throws Exception {
-        return exchange("PUT", path, body);
+        return exchange("PUT", path, body, true);
     }
 
     public String putRawJson(String path, String jsonBody) throws Exception {
+        if (dryRun) {
+            return printDryRun("PUT", path, jsonBody);
+        }
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .timeout(Duration.ofSeconds(30))
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .header("Idempotency-Key", idempotencyKey)
                 .method("PUT", HttpRequest.BodyPublishers.ofString(jsonBody, StandardCharsets.UTF_8));
-        if (token != null && !token.isBlank()) {
-            builder.header("Authorization", "Bearer " + token);
-        }
+        applyAuth(builder);
         return handle(http.send(builder.build()));
     }
 
-    String exchange(String method, String path, Object body) throws Exception {
-        String json = body == null ? "{}" : mapper.writeValueAsString(body);
+    String exchange(String method, String path, Object body, boolean mutating) throws Exception {
+        String json = body == null ? (mutating ? "{}" : null) : mapper.writeValueAsString(body);
+        if (dryRun && mutating) {
+            return printDryRun(method, path, json == null ? "{}" : json);
+        }
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .timeout(Duration.ofSeconds(30))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .header("Idempotency-Key", idempotencyKey)
-                .method(method, HttpRequest.BodyPublishers.ofString(json, StandardCharsets.UTF_8));
+                .header("Accept", "application/json");
+        if ("GET".equals(method)) {
+            builder.GET();
+        } else {
+            builder.header("Content-Type", "application/json")
+                    .header("Idempotency-Key", idempotencyKey)
+                    .method(method, HttpRequest.BodyPublishers.ofString(
+                            json == null ? "{}" : json, StandardCharsets.UTF_8));
+        }
+        applyAuth(builder);
+        return handle(http.send(builder.build()));
+    }
+
+    private void applyAuth(HttpRequest.Builder builder) {
         if (token != null && !token.isBlank()) {
             builder.header("Authorization", "Bearer " + token);
         }
-        return handle(http.send(builder.build()));
+    }
+
+    private String printDryRun(String method, String path, String jsonBody) {
+        String auth = (token != null && !token.isBlank()) ? "Bearer ***" : "(none)";
+        System.out.println("DRY-RUN " + method + " " + baseUrl + path);
+        System.out.println("Authorization: " + auth);
+        System.out.println("Idempotency-Key: " + idempotencyKey);
+        System.out.println(jsonBody == null ? "" : jsonBody);
+        return "(dry-run — not sent)";
     }
 
     private String handle(HttpResponse<String> response) throws ApiException {

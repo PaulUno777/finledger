@@ -43,6 +43,7 @@
 		<module>finledger-security-policy</module>
 		<module>finledger</module>
 		<module>finledger-cli</module>
+		<module>sdk-reference</module>
 	</modules>
 
 	<dependencyManagement>

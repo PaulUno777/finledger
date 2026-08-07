@@ -30,12 +30,12 @@ hints, Docker Boot 4 entrypoint).
      `doctor`, wrappers for `compose up|down|restart|logs`, restart guidance after
      config changes. Lifecycle = Docker Compose / orchestrator, not an embedded
      process supervisor.
-   - **api** (HTTP to running server): existing provisioning commands + health/ready;
-     Bearer / static-token + `X-FinLedger-Tenant-Id` when required.
+   - **api** (HTTP to running server): provisioning commands + `health`/`ready`;
+     Bearer JWT with claim-bound `tenant_id` (ADR-016) — no client tenant header.
 5. **Swagger / OpenAPI:** first-class for local/dev and as API documentation;
    disabled or restricted under `prod`. SSH/ops UX is the CLI.
 6. **Final deliverable:** a CTO integration guide
-   ([INTEGRATION_FOR_CTO.md](../INTEGRATION_FOR_CTO.md)) finalized after step-by-step
+   ([INTEGRATION_GUIDE.md](../INTEGRATION_GUIDE.md)) finalized after step-by-step
    validation of remaining roadmap items.
 
 ## Alternatives considered
@@ -53,10 +53,16 @@ hints, Docker Boot 4 entrypoint).
 - Positive: one-minute eval; clear prod path; CLI stays lean and secure; volumes
   preserve data across `compose restart`.
 - Trade-off: ops commands require Docker (or documented JAR+systemd escape hatch).
-- Follow-up tickets: FL-152 (ops CLI + env.example), FL-153 (api CLI tenant header /
-  health / UX), FL-190 (finalize CTO guide).
+- Follow-up tickets: FL-152 (ops CLI + env.example), FL-153 (api CLI health / dry-run /
+  silent remint), FL-190 (finalize CTO guide).
+- **Amended by [ADR-016](ADR-016-runtime-profiles-jwt-issuer.md):** sandbox vs
+  normal profiles; always-on JWT (external or internal issuer); Hub image remains
+  canonical production; JAR escape hatch with weaker liability.
+- **FL-153 amendment:** drop obsolete `X-FinLedger-Tenant-Id` client header wording;
+  tenant is JWT claim-bound only; CLI session remint is process-memory + in-box
+  issuer credentials only (never written to disk).
 
 ## References
 
 - `docs/PLAN_LEDGER_FINTECH.md` §16, §18, §19
-- ADR-010, ADR-012, ADR-014
+- ADR-010, ADR-012, ADR-014, [ADR-016](ADR-016-runtime-profiles-jwt-issuer.md)

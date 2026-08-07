@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.pauluno.finledger.application.exception.BusinessRuleException;
 import com.pauluno.finledger.application.exception.IdempotencyConflictException;
@@ -107,6 +108,23 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(
+            NoResourceFoundException ex,
+            HttpServletRequest request) {
+
+        log.debug("No handler for {}: {}", request.getMethod(), request.getRequestURI());
+
+        ErrorResponse response = buildErrorResponse(
+                HttpStatus.NOT_FOUND,
+                "NOT_FOUND",
+                "No resource found for " + request.getRequestURI(),
+                request.getRequestURI(),
+                null);
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
     @ExceptionHandler(IdempotencyConflictException.class)
     public ResponseEntity<ErrorResponse> handleIdempotencyConflict(
             IdempotencyConflictException ex,
@@ -129,9 +147,11 @@ public class GlobalExceptionHandler {
 
         HttpStatus status = switch (ex.code()) {
             case "INSUFFICIENT_FUNDS" -> HttpStatus.UNPROCESSABLE_CONTENT;
-            case "ACCOUNT_CLOSED" -> HttpStatus.CONFLICT;
+            case "ACCOUNT_CLOSED", "TENANT_ID_CONFLICT" -> HttpStatus.CONFLICT;
             case "WEBHOOK_SIGNATURE_INVALID" -> HttpStatus.UNAUTHORIZED;
+            case "WEBHOOK_TIMESTAMP_SKEW", "WEBHOOK_REPLAY" -> HttpStatus.UNAUTHORIZED;
             case "WEBHOOK_SECRET_MISSING" -> HttpStatus.SERVICE_UNAVAILABLE;
+            case "RATE_LIMITED" -> HttpStatus.TOO_MANY_REQUESTS;
             default -> HttpStatus.UNPROCESSABLE_CONTENT;
         };
 

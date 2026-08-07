@@ -1,13 +1,20 @@
-# Sandbox eval profile (FL-151) — NEVER combine with prod.
-# Security mode disabled; seeds sandbox tenant + demo accounts on boot.
+# Sandbox eval profile (ADR-016) — NEVER combine with FINLEDGER_ENV=production.
+# JWT always on via in-box ephemeral issuer.
 
 finledger:
   env: local
   security:
-    mode: disabled
+    issuer: internal
+    max-token-ttl: ${FINLEDGER_SECURITY_MAX_TOKEN_TTL:15m}
+    internal:
+      issuer-uri: ${FINLEDGER_INTERNAL_ISSUER_URI:http://localhost:8080/internal/sandbox}
   sandbox:
     dump-path: ${FINLEDGER_SANDBOX_DUMP_PATH:config/sandbox-ready.txt}
     base-url: ${FINLEDGER_SANDBOX_BASE_URL:http://localhost:8080}
+    scenario: ${FINLEDGER_SANDBOX_SCENARIO:simple}
+    client-id: ${FINLEDGER_SANDBOX_CLIENT_ID:sandbox}
+    # Leave blank to generate a high-entropy secret at boot (written to dump only).
+    client-secret: ${FINLEDGER_SANDBOX_CLIENT_SECRET:}
 
 spring:
 
@@ -15,6 +22,10 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/finledger}
     username: ${DB_USERNAME:finledger_app}
     password: ${DB_PASSWORD:finledger}
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:5}
+      connection-timeout: ${SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:30000}
 
   jpa:
     hibernate:
@@ -24,8 +35,3 @@ spring:
     enabled: true
     user: ${SPRING_FLYWAY_USER:finledger}
     password: ${SPRING_FLYWAY_PASSWORD:finledger}
-
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}

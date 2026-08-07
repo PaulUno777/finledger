@@ -1,0 +1,86 @@
+#!/usr/bin/env sh
+# FinLedger CLI launcher (FL-152) — works in repo (dev) and next to a colocated jar (prod).
+# Usage: ./bin/finledger-cli [command…]
+#        No args → interactive shell (REPL).
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+
+java_bin() {
+  if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    printf '%s\n' "$JAVA_HOME/bin/java"
+  else
+    printf '%s\n' "java"
+  fi
+}
+
+pick_dev_jar() {
+  target_dir="$REPO_ROOT/finledger-cli/target"
+  if [ ! -d "$target_dir" ]; then
+    return 1
+  fi
+  # Prefer exact SNAPSHOT name, else newest shaded/release jar (exclude original-*).
+  if [ -f "$target_dir/finledger-cli-0.0.1-SNAPSHOT.jar" ]; then
+    printf '%s\n' "$target_dir/finledger-cli-0.0.1-SNAPSHOT.jar"
+    return 0
+  fi
+  found=$(ls -t "$target_dir"/finledger-cli-*.jar 2>/dev/null | grep -v '/original-' | head -n 1 || true)
+  if [ -n "$found" ] && [ -f "$found" ]; then
+    printf '%s\n' "$found"
+    return 0
+  fi
+  return 1
+}
+
+resolve_jar() {
+  if [ -n "${FINLEDGER_CLI_JAR:-}" ]; then
+    if [ -f "$FINLEDGER_CLI_JAR" ]; then
+      printf '%s\n' "$FINLEDGER_CLI_JAR"
+      return 0
+    fi
+    echo "finledger-cli: FINLEDGER_CLI_JAR is set but not a file: $FINLEDGER_CLI_JAR" >&2
+    exit 1
+  fi
+  if [ -f "$SCRIPT_DIR/finledger-cli.jar" ]; then
+    printf '%s\n' "$SCRIPT_DIR/finledger-cli.jar"
+    return 0
+  fi
+  if [ -f "$REPO_ROOT/finledger-cli.jar" ]; then
+    printf '%s\n' "$REPO_ROOT/finledger-cli.jar"
+    return 0
+  fi
+  if jar=$(pick_dev_jar); then
+    printf '%s\n' "$jar"
+    return 0
+  fi
+  return 1
+}
+
+ensure_jar() {
+  if jar=$(resolve_jar); then
+    printf '%s\n' "$jar"
+    return 0
+  fi
+  if [ -x "$REPO_ROOT/mvnw" ]; then
+    echo "finledger-cli: jar not found — building finledger-cli module…" >&2
+    (CDPATH= cd -- "$REPO_ROOT" && ./mvnw -pl finledger-cli -am package -DskipTests -q)
+    if jar=$(resolve_jar); then
+      printf '%s\n' "$jar"
+      return 0
+    fi
+  fi
+  echo "finledger-cli: could not find the shaded CLI jar." >&2
+  echo "  Dev:  ensure Java 21+ and ./mvnw, or run from the FinLedger repo." >&2
+  echo "  Prod: place finledger-cli.jar next to this script, or set FINLEDGER_CLI_JAR." >&2
+  exit 1
+}
+
+JAVA=$(java_bin)
+if ! command -v "$JAVA" >/dev/null 2>&1 && [ ! -x "$JAVA" ]; then
+  echo "finledger-cli: java not found (set JAVA_HOME or install JDK 21+)." >&2
+  exit 1
+fi
+
+JAR=$(ensure_jar)
+exec "$JAVA" -jar "$JAR" "$@"

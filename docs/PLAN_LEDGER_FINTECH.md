@@ -340,17 +340,18 @@ La sécurité d'un ledger vient de la rigueur de son modèle de menace, pas de l
 
 | Sujet                         | Approche par défaut (in-box)                                                                                                                                                                                      | Ce qui reste au choix de l'adoptant            |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| AuthN/AuthZ                   | Spring Security Resource Server, OAuth2/OIDC standard. **Allowlist stricte** : algorithmes JWT `RS256` et `ES256` uniquement ; `alg=none`, `HS256` et toute variante symétrique interdits pour un client public. | Keycloak, Auth0, Cognito, Okta                 |
+| AuthN/AuthZ                   | Spring Security Resource Server. **Toujours** un JWT signé (`RS256`/`ES256` only ; `alg=none`, `HS256` interdits). `exp` obligatoire + **plafond de durée max** côté ledger. Pas d'auth-off / trust_edge. Émetteur : IdP OIDC **externe** (prod) ou émetteur **interne** FinLedger (`client_id`/`client_secret` → JWT court) — [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md). Profils runtime `sandbox` / `normal`. | Keycloak, Auth0, Cognito, Okta ; ou issuer interne pour sandbox/CI |
 | Scopes/permissions            | Scopes fins par opération (`ledger:write`, `ledger:read:tenant-x`) **explicitement vérifiés par tenant**, pas seulement par rôle global                                                                           | Granularité additionnelle définie par l'adoptant |
 | TLS                           | **TLS 1.3 minimum** au point de terminaison (souvent un reverse-proxy/load balancer devant le service, pas nécessairement Spring Boot lui-même).                                                                  | Terminaison au niveau de l'infra déployante    |
-| mTLS interne                  | Recommandé pour la posture zero-trust entre services                                                                                                                                                              | Implémentation par la stack de l'adoptant      |
+| mTLS interne                  | **Couche transport additive** (mesh/sidecar) — **jamais** un substitut à la vérification JWT. Option ultérieure : contrôle SAN via un port.                                                                      | Implémentation par la stack de l'adoptant      |
 | Isolation multi-tenant        | `tenant_id`/ancestry + Row-Level Security Postgres                                                                                                                                                                | —                                              |
-| Secrets                       | Variables d'environnement (dev, avec avertissement explicite)                                                                                                                                                     | Vault, AWS/GCP Secrets Manager, HSM/KMS        |
+| Secrets                       | Variables d'environnement (dev, avec avertissement explicite). Secrets long-vécus = mint uniquement, jamais Bearer API.                                                                                          | Vault, AWS/GCP Secrets Manager, HSM/KMS        |
 | Chiffrement                   | TLS partout, colonnes sensibles chiffrées (`pgcrypto`/AES-GCM)                                                                                                                                                    | Choix du KMS                                   |
 | Intégrité webhooks sortants   | Signature HMAC-SHA256 systématique (payload + timestamp + nonce) — distincte de l'`Idempotency-Key` (§8.1), qui protège les requêtes **entrantes**                                                                | —                                              |
 | Anti-rejeu                    | Timestamp + nonce, fenêtre de tolérance courte                                                                                                                                                                    | —                                              |
 | Rate limiting                 | Bucket4j en mémoire par défaut                                                                                                                                                                                    | Redis-backed si distribué                      |
 | Audit des accès               | Chaque lecture de données sensibles loggée                                                                                                                                                                        | —                                              |
+| Communication inter-services  | (1) JWT court (client credentials / workload identity) (2) mTLS **en plus** du JWT (3) HMAC pour edges async (rails) (4) ACL réseau / Bearer éternel — **rejetés** comme modèle primaire | IdP / mesh de l'adoptant |
 
 **Hors périmètre volontaire** : API Gateway, Service Mesh, WAF, SIEM et rotation de certificats sont des choix de topologie d'infrastructure de l'adoptant, pas des décisions d'architecture de ce projet — les y inclure contredirait le principe de non-présomption (§0.6). Le design ne les empêche pas ; il ne les présume simplement pas. gRPC reste un adapter optionnel (§2.3), jamais une interface publique de référence en v1 (maintenir OpenAPI et Protobuf en lockstep serait une dette d'ingénierie permanente sans bénéfice de sécurité).
 
@@ -368,7 +369,7 @@ Configuration : `spring.threads.virtual.enabled=true`. Éviter `synchronized` (�
 
 **Cœur non-négociable** : `spring-boot-starter-webmvc`, `spring-boot-starter-validation`, `spring-boot-starter-actuator`, `spring-boot-starter-data-jpa` + `spring-boot-starter-flyway` + `flyway-database-postgresql` + `postgresql`, `spring-boot-starter-security` + `spring-boot-starter-security-oauth2-resource-server`, ArchUnit (test).
 
-**Modules optionnels** : `spring-boot-starter-kafka` (si l'outbox in-box ne suffit plus), Resilience4j (`ExternalRateProvider`), `spring-boot-starter-opentelemetry`, `spring-boot-starter-data-redis`.
+**Modules optionnels** : `spring-boot-starter-kafka` (si l'outbox in-box ne suffit plus), Resilience4j (`ExternalRateProvider`), `spring-boot-starter-opentelemetry`, Redis optionnel plus tard (`RateCache` distribué — défaut in-memory aujourd'hui).
 
 **Tests** : `net.jqwik:jqwik`, `org.pitest:pitest-maven`, Testcontainers — voir aussi `.cursor/rules/testing-rules.mdc`.
 
@@ -420,7 +421,7 @@ Détail complet des règles de test (jqwik, PIT, Testcontainers, tests de concur
 
 ## 6. Configuration (couches : image → fichier externe → env vars + finledger.env.example)
 
-## 6b. Intégration CTO ([INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md))
+## 6b. Intégration ([INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md))
 
 ## 7. API (OpenAPI/Swagger, exemples curl avec Idempotency-Key)
 
@@ -503,7 +504,8 @@ Ni "tout en variables d'environnement" (illisible à grande échelle) ni "wizard
 3. **Variables d'environnement (relaxed binding)** — pour les orchestrateurs qui préfèrent l'injection d'env vars (ConfigMap/Secret Kubernetes, task defs ECS) à un fichier monté ; toute clé YAML est overridable via son équivalent `SCREAMING_SNAKE_CASE`. Fichier de référence **`finledger.env.example`** à la racine : toutes les options documentées avec défauts et descriptions ; `cp finledger.env.example .env` pour démarrer.
 4. **Secrets jamais dans le fichier de config** — toujours via le port `SecretsProvider` (§2.3, §11).
 5. **Premier lancement sans tenant configuré** : le service démarre normalement (jamais de blocage), log un message explicite pointant vers la CLI (§16) ou `POST /api/v1/tenants` pour créer le premier tenant — pas de wizard qui empêcherait le conteneur de passer `healthy`.
-6. **Modes de sécurité (FL-151 / ADR-014)** : `enforced` (défaut prod), `static-token` (CI), `disabled` (sandbox eval) — interlock code si mode ≠ enforced en production.
+6. **Profils runtime & JWT (ADR-016)** : `sandbox` (seed + émetteur interne, clés éphémères) vs `normal` (IdP externe par défaut, ou émetteur interne). Vérification JWT **toujours** active — pas d'auth-off, pas de modes `enforced`/`static-token`/`disabled`.
+7. **Livraison** : image Hub = artefact prod canonique ; fat JAR = échappatoire documentée (garantie de liability **moindre**) ; clone + Compose = eval.
 
 ### 18.2 Pipeline GitHub Actions
 
@@ -525,9 +527,9 @@ docker compose --profile sandbox up -d --build
 # credentials / curls : config/sandbox-ready.txt
 ```
 
-**Production :** image Hub + `with-app` (ou K8s) avec `FINLEDGER_SECURITY_MODE=enforced` et IdP OIDC. Le fat JAR serveur reste un escape hatch hors conteneur. Redémarrer l'app (`compose restart`) sans perdre les données = volumes Postgres/Redis nommés.
+**Production :** image Hub + `with-app` (ou K8s) avec profil `normal`, issuer OIDC **externe**, JWT always-on ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)). Le fat JAR serveur reste une échappatoire hors conteneur (**liability moindre** que l'image). Redémarrer l'app (`compose restart`) sans perdre les données = volume Postgres nommé.
 
-Voir [ADR-012](adr/ADR-012-docker-distribution.md), [ADR-015](adr/ADR-015-operational-model.md).
+Voir [ADR-012](adr/ADR-012-docker-distribution.md), [ADR-015](adr/ADR-015-operational-model.md), [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 
 ---
 
@@ -549,10 +551,13 @@ Voir [ADR-012](adr/ADR-012-docker-distribution.md), [ADR-015](adr/ADR-015-operat
 14. CI/CD (§18) — pipelines GitHub Actions, image Docker publiée.
 15. Observabilité — traces, dashboards.
 15b. Modes de sécurité runnable + sandbox Compose (FL-151 / ADR-014).
-15c. Modèle ops : `finledger.env.example`, CLI ops+api, doctor/status/restart hints (FL-152 / FL-153 / ADR-015).
+15c. Modèle ops : `finledger.env.example`, CLI ops+api, doctor/status/restart hints (FL-152 / ADR-015).
+15d. Profils `sandbox`/`normal` + émetteur JWT interne/externe, toujours-on verify ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md), FL-154 → FL-155 → FL-156) ; puis UX API CLI (FL-153).
+15e. **Sandbox scénarios riches (FL-157)** — packs de seed (`simple` | `aggregator` | `remittance`), labels démo, `FINLEDGER_SANDBOX_SCENARIO` + `sandbox init` ; mint sandbox pour **tout tenant existant** en DB (pas seulement `SandboxIds`) ; conserver `SandboxIds` pour le pack `simple`.
+15f. **Bootstrap control-plane (FL-158)** — scope `platform:admin` distinct de `ledger:admin` ; cérémonie one-shot (JWT court, fail-closed dès qu'un platform-admin existe) pour cold-start `normal` sans IdP ; prod reste `issuer=external`. Amendement ADR-016.
 16. Contract tests vis-à-vis d'un "client fintech" fictif + client de référence non-officiel (`/sdk-reference/`, §15).
 17. Durcissement : chaos testing, tests de charge, revue de sécurité.
-18. **Guide CTO / intégration production** — runbook final pour intégrer FinLedger dans une stack fintech existante ([INTEGRATION_FOR_CTO.md](INTEGRATION_FOR_CTO.md), FL-190), après validation pas-à-pas.
+18. **Guide intégration production** — runbook final pour intégrer FinLedger dans une stack fintech existante ([INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md), FL-190), après validation pas-à-pas.
 19. **Post-v1 (conditionné à l'adoption)** : SDK multi-langues officiels ; éventuelle promotion d'un adapter gRPC au rang d'interface publique si un besoin réel le justifie.
 
 ---
@@ -590,5 +595,6 @@ Ce projet s'inspire de mécanismes précis d'outils existants, sans en adopter l
 | Précisions sécurité diluées dans §10/§11 (JWT allowlist, TLS 1.3, `traceparent`)         | Chapitre "Integration & Security Layer" dédié (Gateway/Mesh/WAF/SIEM)       | La sécurité vient du modèle de menace, pas de la surface d'intégration ; hors non-présomption (§0.6, §11)    |
 | Types de solde comme agrégation de `settlementStatus`                                    | Nouveau concept de compte séparé pour "pending"/"held"                      | Réutilise l'unique flux append-only existant, zéro duplication de vérité                                      |
 | Config en couches (image → fichier optionnel → env vars) + `finledger.env.example`       | Système de config propriétaire ou wizard interactif au boot                 | Zéro réinvention, compatible orchestrateurs, jamais de blocage au démarrage                                   |
-| Install eval type Blnk (`compose --profile sandbox`) + image Hub pour la prod            | Wizard JVM ou CLI qui spawn le serveur comme chemin principal               | DX OSS rapide ; prod = image + OIDC enforced (ADR-012, ADR-015)                                               |
+| Install eval type Blnk (`compose --profile sandbox`) + image Hub pour la prod            | Wizard JVM ou CLI qui spawn le serveur comme chemin principal               | DX OSS rapide ; prod = image + JWT always-on (ADR-012, ADR-015, ADR-016)                                      |
+| Profils `sandbox`/`normal` + JWT always-on (émetteur externe ou interne)                 | Modes `disabled` / Bearer static éternel / trust_edge                       | Zéro confiance non vérifiée ; secrets long-vécus = mint seulement (ADR-016)                                   |
 | Aucun broker/IAM/secrets/rail/gateway/mesh imposé par défaut                             | Choix figé d'un fournisseur ou topologie en dur                             | Le projet est un socle open source pour startups qui ont déjà ou choisiront leur propre stack                 |

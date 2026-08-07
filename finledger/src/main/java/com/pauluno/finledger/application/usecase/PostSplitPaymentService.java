@@ -13,9 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -55,8 +53,6 @@ import com.pauluno.finledger.domain.model.TransactionReference;
 @Service
 public class PostSplitPaymentService implements PostSplitPaymentUseCase {
 
-    private static final int MAX_OPTIMISTIC_RETRIES = 3;
-
     private final IdempotencyStore idempotencyStore;
     private final LedgerAccountRepository ledgerAccountRepository;
     private final AccountBalanceRepository accountBalanceRepository;
@@ -65,6 +61,7 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
     private final SplitRuleSetRepository splitRuleSetRepository;
     private final SplitPlanResolver splitPlanResolver;
     private final RiskGateService riskGateService;
+    private final OptimisticLockRetry optimisticLockRetry;
     private final ObjectMapper objectMapper;
 
     public PostSplitPaymentService(
@@ -75,7 +72,8 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
             OutboxWriter outboxWriter,
             SplitRuleSetRepository splitRuleSetRepository,
             SplitPlanResolver splitPlanResolver,
-            RiskGateService riskGateService
+            RiskGateService riskGateService,
+            OptimisticLockRetry optimisticLockRetry
     ) {
         this.idempotencyStore = idempotencyStore;
         this.ledgerAccountRepository = ledgerAccountRepository;
@@ -85,6 +83,7 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
         this.splitRuleSetRepository = splitRuleSetRepository;
         this.splitPlanResolver = splitPlanResolver;
         this.riskGateService = riskGateService;
+        this.optimisticLockRetry = optimisticLockRetry;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -92,7 +91,6 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
     }
 
     @Override
-    @Transactional
     @Auditable(action = "POST_SPLIT", resourceType = "JOURNAL_ENTRY")
     public PostTransactionResult execute(PostSplitPaymentCommand command) {
         String requestHash = hashRequest(command);
@@ -105,31 +103,13 @@ public class PostSplitPaymentService implements PostSplitPaymentUseCase {
         }
 
         try {
-            PostTransactionResult result = executeWithRetry(command, key);
+            PostTransactionResult result = optimisticLockRetry.execute(() -> postOnce(command, key));
             idempotencyStore.complete(command.tenantId(), key, serializeResult(result));
             return result;
         } catch (RuntimeException ex) {
             idempotencyStore.fail(command.tenantId(), key);
             throw ex;
         }
-    }
-
-    private PostTransactionResult executeWithRetry(PostSplitPaymentCommand command, IdempotencyKey key) {
-        OptimisticLockingFailureException last = null;
-        for (int attempt = 1; attempt <= MAX_OPTIMISTIC_RETRIES; attempt++) {
-            try {
-                return postOnce(command, key);
-            } catch (OptimisticLockingFailureException ex) {
-                last = ex;
-                try {
-                    Thread.sleep(10L * attempt);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw ex;
-                }
-            }
-        }
-        throw last;
     }
 
     private PostTransactionResult postOnce(PostSplitPaymentCommand command, IdempotencyKey key) {

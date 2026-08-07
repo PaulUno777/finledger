@@ -3,6 +3,9 @@ package com.pauluno.finledger.cli.command;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -25,19 +28,43 @@ class ConfigCommandTest {
         Path file = tempDir.resolve("application.yml");
         CommandLine cmd = new CommandLine(new FinledgerCli());
 
-        int init = cmd.execute("config", "init", "--mode", "disabled", "--out", file.toString());
-        assertEquals(0, init);
-        assertTrue(Files.readString(file).contains("mode: disabled"));
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PrintStream previous = System.out;
+        System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8));
+        try {
+            int init = cmd.execute(
+                    "config", "init", "--profile", "sandbox", "--out", file.toString());
+            assertEquals(0, init);
+            String initText = Files.readString(file);
+            assertTrue(initText.contains("issuer: internal"), initText);
+            assertTrue(initText.contains("active: sandbox"), initText);
 
-        int set = cmd.execute("config", "set", "--file", file.toString(), "security.mode", "static-token");
-        assertEquals(0, set);
-        assertTrue(Files.readString(file).contains("mode: static-token"));
+            int set = cmd.execute(
+                    "config", "set", "--file", file.toString(), "security.issuer", "external");
+            assertEquals(0, set);
+            assertTrue(Files.readString(file).contains("issuer: external"));
 
-        int ok = cmd.execute("config", "validate", "--file", file.toString());
-        assertEquals(0, ok);
+            int ok = cmd.execute("config", "validate", "--file", file.toString());
+            assertEquals(0, ok);
 
-        int bad = cmd.execute(
-                "config", "validate", "--file", file.toString(), "--profiles", "prod");
-        assertEquals(1, bad);
+            String text = out.toString(StandardCharsets.UTF_8);
+            assertTrue(text.contains("finledger-cli restart"), text);
+
+            Files.writeString(
+                    file,
+                    """
+                    spring:
+                      profiles:
+                        active: sandbox
+                    finledger:
+                      env: production
+                      security:
+                        issuer: internal
+                    """);
+            int forbidden = cmd.execute("config", "validate", "--file", file.toString());
+            assertEquals(1, forbidden);
+        } finally {
+            System.setOut(previous);
+        }
     }
 }

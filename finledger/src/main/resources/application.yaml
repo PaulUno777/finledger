@@ -4,16 +4,21 @@ spring:
     name: finledger
 
   profiles:
-    active: local
+    # ADR-016: sandbox | normal only (auth/runtime). Compose/env overrides as needed.
+    active: normal
 
   # Layered config (plan §18.1): defaults here → optional external file → env vars.
   # Mount or place overrides under ./config (local) or /workspace/config (container).
   config:
     additional-location: optional:file:./config/,optional:file:/workspace/config/
 
-  # OIDC Resource Server (FL-100). Set via env:
+  # OIDC Resource Server. Set via env when issuer=external:
   # SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
   # or SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+
+  threads:
+    virtual:
+      enabled: true
 
 server:
   port: 8080
@@ -31,27 +36,39 @@ management:
 
   tracing:
     sampling:
-      probability: 1.0
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
 
   observations:
     key-values:
       application: ${spring.application.name}
 
   # Set OTEL_EXPORTER_OTLP_ENDPOINT or
-  # management.opentelemetry.tracing.export.otlp.endpoint to enable OTLP export.
-  # Leave unset for local Prometheus-only (ADR-013).
-
-logging:
-  level:
-    root: INFO
+  # management.otlp.tracing.endpoint for export.
 
 finledger:
   env: ${FINLEDGER_ENV:local}
   security:
-    # enforced (default) | static-token | disabled — see ADR-014
-    mode: ${FINLEDGER_SECURITY_MODE:enforced}
+    # external (default) | internal — see docs/auth-integration.md
+    issuer: ${FINLEDGER_SECURITY_ISSUER:external}
+    max-token-ttl: ${FINLEDGER_SECURITY_MAX_TOKEN_TTL:15m}
+    internal:
+      issuer-uri: ${FINLEDGER_INTERNAL_ISSUER_URI:http://localhost:8080/internal}
+      signing-key-pem: ${FINLEDGER_INTERNAL_SIGNING_KEY_PEM:}
+      signing-key-path: ${FINLEDGER_INTERNAL_SIGNING_KEY_PATH:}
+      public-key-pem: ${FINLEDGER_INTERNAL_PUBLIC_KEY_PEM:}
   fraud:
     enabled: false
+  rate-limit:
+    enabled: ${FINLEDGER_RATE_LIMIT_ENABLED:true}
+    capacity: ${FINLEDGER_RATE_LIMIT_CAPACITY:120}
+    refill-per-second: ${FINLEDGER_RATE_LIMIT_REFILL_PER_SECOND:60}
+  rail:
+    webhook:
+      # Anti-replay window for X-Finledger-Timestamp (seconds)
+      max-skew-seconds: ${FINLEDGER_RAIL_WEBHOOK_MAX_SKEW_SECONDS:300}
   sandbox:
     dump-path: config/sandbox-ready.txt
     base-url: http://localhost:8080
+    scenario: ${FINLEDGER_SANDBOX_SCENARIO:simple}
+    client-id: ${FINLEDGER_SANDBOX_CLIENT_ID:sandbox}
+    client-secret: ${FINLEDGER_SANDBOX_CLIENT_SECRET:}

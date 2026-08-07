@@ -26,6 +26,14 @@ public final class TestJwtAuth {
                 .authorities(new SimpleGrantedAuthority(LedgerAuthorities.SCOPE_LEDGER_ADMIN));
     }
 
+    public static RequestPostProcessor platformAdminJwt() {
+        return jwt()
+                .jwt(builder -> builder
+                        .subject("platform-bootstrap")
+                        .claim("scope", LedgerAuthorities.PLATFORM_ADMIN))
+                .authorities(new SimpleGrantedAuthority(LedgerAuthorities.SCOPE_PLATFORM_ADMIN));
+    }
+
     public static RequestPostProcessor tenantJwt(UUID tenantId, String... scopes) {
         String scopeClaim = String.join(" ", scopes);
         SimpleGrantedAuthority[] authorities = new SimpleGrantedAuthority[scopes.length];

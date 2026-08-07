@@ -22,7 +22,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -50,11 +49,6 @@ class RailPaymentIntegrationTest {
             .withUsername("finledger")
             .withPassword("finledger");
 
-    @Container
-    static final GenericContainer<?> REDIS = new GenericContainer<>(
-            DockerImageName.parse("redis:8-alpine"))
-            .withExposedPorts(6379);
-
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
@@ -64,8 +58,6 @@ class RailPaymentIntegrationTest {
         registry.add("spring.flyway.password", POSTGRES::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         registry.add("spring.flyway.enabled", () -> "true");
-        registry.add("spring.data.redis.host", REDIS::getHost);
-        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379).toString());
         registry.add("finledger.outbox.poll-interval-ms", () -> "3600000");
         registry.add("finledger.audit.integrity-interval-ms", () -> "3600000");
         System.setProperty(RailWebhookHmac.SECRET_KEY, WEBHOOK_SECRET);
@@ -182,7 +174,7 @@ class RailPaymentIntegrationTest {
                 "railReference", railReference,
                 "idempotencyKey", "wh-settle-" + UUID.randomUUID()
         ));
-        String timestamp = "1710000000";
+		String timestamp = String.valueOf(java.time.Instant.now().getEpochSecond());
         String nonce = UUID.randomUUID().toString();
         String signature = RailWebhookHmac.sign(WEBHOOK_SECRET, timestamp, nonce, body);
 

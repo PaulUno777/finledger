@@ -12,9 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,14 +50,13 @@ import com.pauluno.finledger.domain.service.ProRataFeePolicy;
 @Service
 public class RefundTransactionService implements RefundTransactionUseCase {
 
-    private static final int MAX_OPTIMISTIC_RETRIES = 3;
-
     private final IdempotencyStore idempotencyStore;
     private final LedgerAccountRepository ledgerAccountRepository;
     private final AccountBalanceRepository accountBalanceRepository;
     private final JournalEntryRepository journalEntryRepository;
     private final OutboxWriter outboxWriter;
     private final TenantFeeConfigRepository tenantFeeConfigRepository;
+    private final OptimisticLockRetry optimisticLockRetry;
     private final ObjectMapper objectMapper;
 
     public RefundTransactionService(
@@ -68,13 +65,15 @@ public class RefundTransactionService implements RefundTransactionUseCase {
             AccountBalanceRepository accountBalanceRepository,
             JournalEntryRepository journalEntryRepository,
             OutboxWriter outboxWriter,
-            TenantFeeConfigRepository tenantFeeConfigRepository) {
+            TenantFeeConfigRepository tenantFeeConfigRepository,
+            OptimisticLockRetry optimisticLockRetry) {
         this.idempotencyStore = idempotencyStore;
         this.ledgerAccountRepository = ledgerAccountRepository;
         this.accountBalanceRepository = accountBalanceRepository;
         this.journalEntryRepository = journalEntryRepository;
         this.outboxWriter = outboxWriter;
         this.tenantFeeConfigRepository = tenantFeeConfigRepository;
+        this.optimisticLockRetry = optimisticLockRetry;
         this.objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -82,7 +81,6 @@ public class RefundTransactionService implements RefundTransactionUseCase {
     }
 
     @Override
-    @Transactional
     @Auditable(action = "REFUND_TRANSACTION", resourceType = "JOURNAL_ENTRY")
     public PostTransactionResult execute(RefundTransactionCommand command) {
         String requestHash = hashRequest(command);
@@ -95,31 +93,13 @@ public class RefundTransactionService implements RefundTransactionUseCase {
         }
 
         try {
-            PostTransactionResult result = executeWithRetry(command, key);
+            PostTransactionResult result = optimisticLockRetry.execute(() -> refundOnce(command, key));
             idempotencyStore.complete(command.tenantId(), key, serializeResult(result));
             return result;
         } catch (RuntimeException ex) {
             idempotencyStore.fail(command.tenantId(), key);
             throw ex;
         }
-    }
-
-    private PostTransactionResult executeWithRetry(RefundTransactionCommand command, IdempotencyKey key) {
-        OptimisticLockingFailureException last = null;
-        for (int attempt = 1; attempt <= MAX_OPTIMISTIC_RETRIES; attempt++) {
-            try {
-                return refundOnce(command, key);
-            } catch (OptimisticLockingFailureException ex) {
-                last = ex;
-                try {
-                    Thread.sleep(10L * attempt);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw ex;
-                }
-            }
-        }
-        throw last;
     }
 
     private PostTransactionResult refundOnce(RefundTransactionCommand command, IdempotencyKey key) {
