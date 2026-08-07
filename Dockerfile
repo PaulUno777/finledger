@@ -11,10 +11,12 @@ COPY pom.xml .
 COPY finledger-security-policy/pom.xml finledger-security-policy/
 COPY finledger/pom.xml finledger/
 COPY finledger-cli/pom.xml finledger-cli/
+COPY sdk-reference/pom.xml sdk-reference/
 
 RUN chmod +x mvnw
 
 # Resolve deps when POMs change only (BuildKit cache persists /root/.m2).
+# Parent reactor lists all modules — each module dir must exist (POM only for siblings).
 RUN --mount=type=cache,target=/root/.m2 \
 	./mvnw -B -pl finledger -am dependency:go-offline -DskipTests
 
@@ -54,4 +56,6 @@ VOLUME ["/workspace/config"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
 	CMD curl -fsS http://127.0.0.1:8081/actuator/health || exit 1
 
+# Boot 4 extract --layers yields thin jar + Class-Path lib/ (loader dir empty).
+# Plan §18.3: java -jar — not classic Boot 3 JarLauncher.
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/finledger-0.0.1-SNAPSHOT.jar"]
