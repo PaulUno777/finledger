@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Contract tests + `/sdk-reference/` (FL-160): OpenAPI path/`operationId` snapshot
+  at `docs/contracts/openapi-paths.json` with `@Tag("contract")` IT (any drift fails);
+  behavioral contracts (401/409/403/bad HMAC); non-official Java reference client
+  (idempotency, webhook HMAC, retry, `traceparent`) — not published, no SemVer
+  ([sdk-reference/](sdk-reference/), [INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
 - API CLI UX (FL-153): process-memory session after `auth token`, silent remint on
   near-expiry/401 (in-box issuer only), global `--dry-run`, `health`/`ready` commands,
   `doctor` fails on unhealthy actuator; ADR-015 drops obsolete tenant header wording

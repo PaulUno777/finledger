@@ -1,0 +1,92 @@
+{
+  "description" : "FL-160 OpenAPI path/operation inventory — regenerate intentionally when API changes",
+  "operations" : [ {
+    "path" : "/api/v1/tenants",
+    "method" : "POST",
+    "operationId" : "create"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/accounts",
+    "method" : "POST",
+    "operationId" : "create_1"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/accounts/{accountId}",
+    "method" : "GET",
+    "operationId" : "get_1"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/accounts/{accountId}/balance",
+    "method" : "GET",
+    "operationId" : "getBalance"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/audit/integrity",
+    "method" : "GET",
+    "operationId" : "integrity"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/fee-config",
+    "method" : "PUT",
+    "operationId" : "putFeeConfig"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/fraud/config",
+    "method" : "GET",
+    "operationId" : "getConfig"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/fraud/config",
+    "method" : "PUT",
+    "operationId" : "putConfig_1"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/fraud/decisions",
+    "method" : "GET",
+    "operationId" : "listDecisions"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/fx/config",
+    "method" : "PUT",
+    "operationId" : "putConfig"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/fx/overrides",
+    "method" : "PUT",
+    "operationId" : "putOverride"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/fx/rates",
+    "method" : "GET",
+    "operationId" : "getRate"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/journal-entries",
+    "method" : "POST",
+    "operationId" : "post"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/journal-entries/{journalEntryId}",
+    "method" : "GET",
+    "operationId" : "get"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/rails/payments",
+    "method" : "POST",
+    "operationId" : "initiate"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/rails/payments/{railReference}/settle",
+    "method" : "POST",
+    "operationId" : "settle"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/rails/webhooks/settlement",
+    "method" : "POST",
+    "operationId" : "settlementWebhook"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/reconciliation/breaks",
+    "method" : "GET",
+    "operationId" : "listBreaks"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/reconciliation/reports",
+    "method" : "POST",
+    "operationId" : "ingestReport"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/refunds",
+    "method" : "POST",
+    "operationId" : "postRefund"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/split-rules/{ruleSetKey}",
+    "method" : "PUT",
+    "operationId" : "putSplitRules"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/splits",
+    "method" : "POST",
+    "operationId" : "postSplit"
+  } ]
+}
