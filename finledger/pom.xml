@@ -179,6 +179,16 @@
 	<build>
 		<plugins>
 			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<systemPropertyVariables>
+						<!-- FL-160: OpenAPI inventory lives at repo root docs/contracts/ -->
+						<finledger.contracts.snapshot>${maven.multiModuleProjectDirectory}/docs/contracts/openapi-paths.json</finledger.contracts.snapshot>
+					</systemPropertyVariables>
+				</configuration>
+			</plugin>
+			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>

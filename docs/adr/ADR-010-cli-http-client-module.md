@@ -43,3 +43,6 @@ would couple operator tooling to the server classpath and complicate packaging.
 - **Amended by [ADR-015](ADR-015-operational-model.md):** CLI gains a local **ops**
   surface (Compose wrappers, doctor, config validate) while keeping HTTP **api**
   commands as the remote admin path; no embedded server lifecycle.
+- **FL-160 delivered:** in-repo non-official [`/sdk-reference/`](../../sdk-reference/)
+  (idempotency, webhook HMAC, retry, `traceparent`). The CLI remains a separate
+  module and does not depend on `sdk-reference`; official SDKs stay FL-180.

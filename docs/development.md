@@ -51,8 +51,8 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-156 | Persistent internal issuer for normal/CI (durable secrets) | `feature/FL-156-internal-jwt-issuer` | done |
 | FL-157 | Richer sandbox scenarios + mint for any existing sandbox tenant | `feature/FL-157-sandbox-scenarios` | done |
 | FL-158 | Platform bootstrap (`platform:admin` + one-shot JWT) for IdP-less normal | `feature/FL-158-platform-bootstrap` | done |
-| FL-153 | API CLI UX (health/ready, dry-run, silent refresh) | `feature/FL-153-api-cli-ux` | ready for PR |
-| FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | pending |
+| FL-153 | API CLI UX (health/ready, dry-run, silent refresh) | `feature/FL-153-api-cli-ux` | done |
+| FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official) | `feature/FL-160-contracts-sdk-ref` | in progress |
 | FL-170 | Hardening | `feature/FL-170-hardening` | pending |
 | FL-180 | Post-v1 official multi-lang SDKs (separate repos) | `feature/FL-180-official-sdks` | pending |
 | FL-190 | Finalize CTO integration runbook | `feature/FL-190-cto-integration-guide` | pending |
@@ -63,8 +63,8 @@ copy-paste [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) instructions as if a
 fintech CTO were integrating FinLedger into their stack. Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 Auth target: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 
-**Gate note:** FL-153 (API CLI UX) is on this branch — stop for human PR into `develop`.
-Do **not** start FL-160 until FL-153 is merged.
+**Gate note:** FL-160 (contracts + sdk-reference) is on this branch — stop for human PR into `develop`.
+Do **not** start FL-170 until FL-160 is merged.
 
 ## Phase gate checklist
 
@@ -76,7 +76,8 @@ Do **not** start FL-160 until FL-153 is merged.
 
 ## Maven commands
 
-The repo is a multi-module reactor (`finledger` server + `finledger-cli` + `finledger-security-policy`).
+The repo is a multi-module reactor (`finledger` server + `finledger-cli` + `finledger-security-policy`
++ `sdk-reference`).
 
 ```bash
 ./mvnw test                         # all modules: unit + ArchUnit + smoke
@@ -110,5 +111,16 @@ Test tags (target convention):
 
 - `@Tag("unit")` — fast, no external deps
 - `@Tag("integration")` — Testcontainers / real Postgres
+- `@Tag("contract")` — OpenAPI path inventory + behavioral API contracts (FL-160)
 - `@Tag("architecture")` — ArchUnit
 - `@Tag("e2e")` — release pipeline only
+
+### OpenAPI contract snapshot (FL-160)
+
+Committed inventory: [`docs/contracts/openapi-paths.json`](contracts/openapi-paths.json).
+Any path/method/`operationId` drift fails `ApiContractIntegrationTest`. After an
+intentional API change, regenerate in the same PR:
+
+```bash
+./mvnw -pl finledger -Dtest=ApiContractIntegrationTest -Dfinledger.contracts.write=true test
+```

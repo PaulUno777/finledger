@@ -213,6 +213,21 @@ curl -s -X POST "http://localhost:8080/api/v1/tenants/$TENANT/journal-entries" \
 
 Same `Idempotency-Key` + same body → replay. Same key + different body → `409`.
 
+### Client patterns (`/sdk-reference/`)
+
+In-repo **non-official** Java helpers under [`sdk-reference/`](../sdk-reference/)
+(JDK `HttpClient`; no Spring; **no SemVer / Maven Central** — official SDKs are FL-180):
+
+- Idempotency-Key generation + “reuse only with same body hash”
+- Rail webhook HMAC verify (`HMAC-SHA256(timestamp + "." + nonce + "." + body)`)
+- Safe retries (no generic `4xx`; optional `408`/`429`)
+- W3C `traceparent` generate/propagate on outbound calls
+
+OpenAPI **path + operationId** inventory is gated in CI:
+[`docs/contracts/openapi-paths.json`](contracts/openapi-paths.json). After intentional
+API changes, regenerate with
+`./mvnw -pl finledger -Dtest=ApiContractIntegrationTest -Dfinledger.contracts.write=true test`.
+
 Stop (keeps Postgres data):
 
 ```bash
