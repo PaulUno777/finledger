@@ -41,7 +41,7 @@ trail. Your stack owns UX, KYC, PSP rails, and (in production) JWT **issuance**.
 
 | Artifact | Role | Liability |
 | -------- | ---- | --------- |
-| Hub image `${DOCKERHUB_USERNAME}/finledger:<semver>` | Canonical deployable | Full CI + multi-arch release bar ([ADR-012](adr/ADR-012-docker-distribution.md)) |
+| Hub image `unoteck/finledger:<semver>` | Canonical deployable | Full CI + multi-arch release bar ([ADR-012](adr/ADR-012-docker-distribution.md)) |
 | Server fat JAR | Escape hatch (non-container hosts) | Weaker guarantee bar ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)) |
 
 **Hard rule:** never run profile `sandbox` with `FINLEDGER_ENV=production` (or `prod`).
@@ -339,7 +339,10 @@ FinLedger (Hub image) → Your Postgres (FORCE RLS)
 
 ### 7.1 Checklist
 
-1. Pull `${DOCKERHUB_USERNAME}/finledger:<semver>` (also `:latest` after a release tag).
+1. Pull `unoteck/finledger:<semver>` (current: `0.1.0`; also `:latest` after each release tag).
+   ```bash
+   docker pull unoteck/finledger:0.1.0
+   ```
 2. `SPRING_PROFILES_ACTIVE=normal`, `FINLEDGER_ENV=production`, `FINLEDGER_SECURITY_ISSUER=external`.
 3. Point OIDC issuer/JWKS at your IdP; enforce §5.
 4. Terminate **TLS 1.3** at the edge; keep management port **`:8081` private** (ClusterIP / no public LB).
@@ -394,7 +397,7 @@ spec:
     spec:
       containers:
         - name: finledger
-          image: YOUR_DOCKERHUB_USER/finledger:0.1.0   # pin semver
+          image: unoteck/finledger:0.1.0   # pin semver; avoid :latest in prod
           ports:
             - name: http
               containerPort: 8080
