@@ -25,9 +25,11 @@ CONTRIBUTING.md
 SECURITY.md
 CODE_OF_CONDUCT.md
 
-# CLI sources are not packaged into the server image (-pl finledger)
+# Sibling modules: POM only for reactor parse; not packaged into the server image
 finledger-cli/src/
 finledger-cli/target/
+sdk-reference/src/
+sdk-reference/target/
 
 # Local config / secrets
 config/

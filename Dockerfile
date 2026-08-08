@@ -11,10 +11,12 @@ COPY pom.xml .
 COPY finledger-security-policy/pom.xml finledger-security-policy/
 COPY finledger/pom.xml finledger/
 COPY finledger-cli/pom.xml finledger-cli/
+COPY sdk-reference/pom.xml sdk-reference/
 
 RUN chmod +x mvnw
 
 # Resolve deps when POMs change only (BuildKit cache persists /root/.m2).
+# Parent reactor lists all modules — each module dir must exist (POM only for siblings).
 RUN --mount=type=cache,target=/root/.m2 \
 	./mvnw -B -pl finledger -am dependency:go-offline -DskipTests
 
