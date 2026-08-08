@@ -87,7 +87,7 @@ port (non-presumption — no hard-wired mesh vendor).
 |----------|------|-----------|
 | `git clone` + Compose sandbox | Eval | Dev |
 | Docker Hub `…/finledger:<semver>` | **Canonical production** | Full (CI, non-root, multi-arch) |
-| Server fat JAR on GitHub Release | Escape hatch (already a Docker build intermediate) | **Weaker** — not the same guarantee bar as the image; document in CTO guide |
+| Server fat JAR on GitHub Release | Escape hatch (already a Docker build intermediate) | **Weaker** — not the same guarantee bar as the image; document in integration guide |
 
 ### 7. Compatibility with ADR-014 (one release)
 
