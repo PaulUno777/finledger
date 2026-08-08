@@ -34,9 +34,9 @@ hints, Docker Boot 4 entrypoint).
      Bearer JWT with claim-bound `tenant_id` (ADR-016) — no client tenant header.
 5. **Swagger / OpenAPI:** first-class for local/dev and as API documentation;
    disabled or restricted under `prod`. SSH/ops UX is the CLI.
-6. **Final deliverable:** a CTO integration guide
+6. **Final deliverable:** a developer integration guide
    ([INTEGRATION_GUIDE.md](../INTEGRATION_GUIDE.md)) — **delivered in FL-190**
-   (Hub + external IdP production go-live, illustrative K8s skeleton, day-0/day-2).
+   (eval through production; Hub + external IdP, illustrative K8s skeleton, day-0/day-2).
 
 ## Alternatives considered
 
@@ -61,8 +61,8 @@ hints, Docker Boot 4 entrypoint).
 - **FL-153 amendment:** drop obsolete `X-FinLedger-Tenant-Id` client header wording;
   tenant is JWT claim-bound only; CLI session remint is process-memory + in-box
   issuer credentials only (never written to disk).
-- **FL-190 amendment:** [INTEGRATION_GUIDE.md](../INTEGRATION_GUIDE.md) is the CTO /
-  production runbook (K8s skeleton, required prod env, day-0/day-2 ops).
+- **FL-190 amendment:** [INTEGRATION_GUIDE.md](../INTEGRATION_GUIDE.md) is the
+  developer integration guide (local/staging/prod; K8s skeleton and day-0/day-2 ops).
 
 ## References
 

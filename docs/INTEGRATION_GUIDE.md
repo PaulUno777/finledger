@@ -1,13 +1,22 @@
-# FinLedger — CTO / production integration guide
+# FinLedger — developer integration guide
 
-Self-contained runbook to evaluate FinLedger locally and take it to production.
-You need Docker (or Kubernetes), the repo CLI (`./bin/finledger-cli`), and a terminal.
+Self-contained guide for the **engineering team** integrating FinLedger: local eval,
+CI/IdP-less normal, staging with your IdP, and production go-live. Same loop everywhere.
+You need Docker (Kubernetes only when you deploy), the repo CLI (`./bin/finledger-cli`),
+and a terminal.
 
-**One loop for every path (eval and prod):**
+**One loop for every environment:**
 
 ```text
 up → get a TOKEN → call the API with that TOKEN
 ```
+
+| Who / when | Start here |
+| ---------- | ---------- |
+| Local demo / onboarding | §3 sandbox |
+| Backend without an IdP yet | §3 normal + internal |
+| Staging / prod with your IdP | §3 normal + external → §5 → §7 |
+| Day-2 ops (any env) | §8–§10 |
 
 The CLI prompts on a TTY for secrets and missing fields. In CI/pipes, pass flags or env.
 
@@ -16,7 +25,7 @@ Related: [configuration.md](configuration.md) · [auth-integration.md](auth-inte
 
 ---
 
-## 1. Audience and ownership
+## 1. What you get
 
 FinLedger is a **self-hosted multi-tenant double-entry ledger**. You call its REST API;
 it owns journals, idempotency, tenant isolation (Postgres RLS), and a hash-chained audit
@@ -28,12 +37,12 @@ trail. Your stack owns UX, KYC, PSP rails, and (in production) JWT **issuance**.
 | Journal + balances + outbox     | Consume events (optional adapters)   |
 | Docker Hub image for production | Configure env / secrets at the edge  |
 
-**Distribution contract**
+**Distribution** (when you leave local Compose):
 
 | Artifact | Role | Liability |
 | -------- | ---- | --------- |
-| Hub image `${DOCKERHUB_USERNAME}/finledger:<semver>` | **Canonical production** | Full CI + multi-arch release bar ([ADR-012](adr/ADR-012-docker-distribution.md)) |
-| Server fat JAR | Escape hatch (non-container hosts) | **Weaker** — not the same guarantee bar ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)) |
+| Hub image `${DOCKERHUB_USERNAME}/finledger:<semver>` | Canonical deployable | Full CI + multi-arch release bar ([ADR-012](adr/ADR-012-docker-distribution.md)) |
+| Server fat JAR | Escape hatch (non-container hosts) | Weaker guarantee bar ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)) |
 
 **Hard rule:** never run profile `sandbox` with `FINLEDGER_ENV=production` (or `prod`).
 Boot refuses.
@@ -316,9 +325,10 @@ Last wins: embedded YAML → optional `./config/` → environment. Full referenc
 
 ---
 
-## 7. Production go-live
+## 7. Production go-live (when you ship)
 
-Canonical path: **Hub image** + profile `normal` + `issuer=external` + your Postgres.
+For staging/prod — not required for local eval (§3). Canonical path: **Hub image** +
+profile `normal` + `issuer=external` + your Postgres.
 
 ```text
 Your API / BFF / workers
@@ -512,4 +522,5 @@ Interactive rules:
 
 ---
 
-_CTO runbook (FL-190). Eval and production share the same loop: up → token → API._
+_Developer integration guide (FL-190). Local, staging, and production share the same
+loop: up → token → API._
