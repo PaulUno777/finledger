@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Document published Hub image as `unoteck/finledger:0.1.0` / `:latest` in README and
+  integration guide
+
 ## [0.1.0] - 2026-08-08
 
 First public release of the completed v1 roadmap track (FL-010 … FL-190).
