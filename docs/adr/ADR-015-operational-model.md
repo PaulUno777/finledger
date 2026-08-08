@@ -35,8 +35,8 @@ hints, Docker Boot 4 entrypoint).
 5. **Swagger / OpenAPI:** first-class for local/dev and as API documentation;
    disabled or restricted under `prod`. SSH/ops UX is the CLI.
 6. **Final deliverable:** a CTO integration guide
-   ([INTEGRATION_GUIDE.md](../INTEGRATION_GUIDE.md)) finalized after step-by-step
-   validation of remaining roadmap items.
+   ([INTEGRATION_GUIDE.md](../INTEGRATION_GUIDE.md)) — **delivered in FL-190**
+   (Hub + external IdP production go-live, illustrative K8s skeleton, day-0/day-2).
 
 ## Alternatives considered
 
@@ -54,13 +54,15 @@ hints, Docker Boot 4 entrypoint).
   preserve data across `compose restart`.
 - Trade-off: ops commands require Docker (or documented JAR+systemd escape hatch).
 - Follow-up tickets: FL-152 (ops CLI + env.example), FL-153 (api CLI health / dry-run /
-  silent remint), FL-190 (finalize CTO guide).
+  silent remint), FL-190 (finalize CTO guide) — **all delivered**.
 - **Amended by [ADR-016](ADR-016-runtime-profiles-jwt-issuer.md):** sandbox vs
   normal profiles; always-on JWT (external or internal issuer); Hub image remains
   canonical production; JAR escape hatch with weaker liability.
 - **FL-153 amendment:** drop obsolete `X-FinLedger-Tenant-Id` client header wording;
   tenant is JWT claim-bound only; CLI session remint is process-memory + in-box
   issuer credentials only (never written to disk).
+- **FL-190 amendment:** [INTEGRATION_GUIDE.md](../INTEGRATION_GUIDE.md) is the CTO /
+  production runbook (K8s skeleton, required prod env, day-0/day-2 ops).
 
 ## References
 

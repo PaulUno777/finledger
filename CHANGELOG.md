@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- CTO / production integration runbook (FL-190): Hub image + external IdP go-live,
+  required env table, illustrative Kubernetes Deployment/Service + probes on `:8081`,
+  day-0/day-2 ops (rate limit, webhook anti-replay, observability)
+  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
+
 ### Fixed
 
+- RateLimitingFilter owns its Jackson `ObjectMapper` (Boot 4 does not expose a
+  Jackson 2 bean) so the container image boots past filter wiring (FL-190)
 - Optimistic-lock retries use a **new** DB transaction per attempt with backoff
   outside the TX; balance re-read re-validates overdraft before apply (FL-170 / §8.3)
 - Outbox poller no longer runs fraud HOLD synchronously inside the claim TX —
@@ -59,13 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `InternalJwtIssuer` mint/JWKS surface ([auth-integration.md](docs/auth-integration.md),
   [ADR-016](docs/adr/ADR-016-runtime-profiles-jwt-issuer.md))
 - Sandbox ephemeral JWT issuer + auth cleanup (FL-155): in-box RSA mint (`POST /api/v1/auth/token` + JWKS), max TTL, profiles `sandbox`|`normal` only, removed ADR-014 modes (`enforced`/`static-token`/`disabled`) and `local`/`prod`/`test` Spring profiles, CLI `auth token` + claim/BFF docs ([auth-integration.md](docs/auth-integration.md), [ADR-016](docs/adr/ADR-016-runtime-profiles-jwt-issuer.md))
-- Developer integration guide rewrite (FL-155): copy-paste sandbox + normal paths, auth contract, ops CLI, production checklist ([INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md))
+- Developer integration guide rewrite (FL-155): copy-paste sandbox + normal paths, auth contract, ops CLI, production checklist ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
 - Roadmap FL-158: platform:admin one-shot bootstrap for IdP-less normal cold-start (plan §14)
 - Roadmap FL-157: richer sandbox scenario packs + `sandbox init` launcher (plan §14); keep `SandboxIds` as `simple` pack UUID contract
 - Drop unused Redis hard dependency: rate cache stays in-memory; Compose/ITs need Postgres only
 - Ops CLI + env template (FL-152): `finledger.env.example`, CLI `doctor`/`status`/`up`/`down`/`restart`/`logs` (Compose wrappers), config restart hints, `./bin/finledger-cli` launcher (REPL-first; auto-build in repo) ([ADR-015](docs/adr/ADR-015-operational-model.md))
 - Runtime profiles & JWT issuer model (FL-154 docs): ADR-016 — `sandbox`/`normal`, always-on JWT, issuer `external`|`internal`, no trust_edge; tickets FL-155/156; FL-153 after auth ([ADR-016](docs/adr/ADR-016-runtime-profiles-jwt-issuer.md))
-- Operational model (ADR-015): Compose-first eval (Blnk-style), dual-surface CLI (ops + api), CTO integration outline ([INTEGRATION_FOR_CTO.md](docs/INTEGRATION_FOR_CTO.md), finalized FL-190)
+- Operational model (ADR-015): Compose-first eval (Blnk-style), dual-surface CLI (ops + api), CTO integration outline ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md), finalized FL-190)
 - Runnable security modes (FL-151): `enforced` / `static-token` / `disabled`, production interlock, sandbox Compose profile + credential dump, CLI `config init|set|validate`, shared `finledger-security-policy` module ([ADR-014](docs/adr/ADR-014-security-modes.md))
 - Observability (FL-150): Micrometer Tracing + OpenTelemetry, optional OTLP export, JSON logs with trace MDC, `LedgerMetrics`, Compose `observability` profile + Grafana dashboard ([ADR-013](docs/adr/ADR-013-observability.md))
 - CI/CD + Docker Hub (FL-140): multi-stage `Dockerfile`, Compose `with-app` profile, CI Docker build (no push), tag-triggered multi-arch Hub release + GitHub Release ([ADR-012](docs/adr/ADR-012-docker-distribution.md))
