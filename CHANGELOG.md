@@ -7,41 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-08
+
+First public release of the completed v1 roadmap track (FL-010 … FL-190).
+
 ### Added
 
 - Developer integration guide finalized (FL-190): local eval through production —
   Hub image + external IdP go-live, required env table, illustrative Kubernetes
   Deployment/Service + probes on `:8081`, day-0/day-2 ops (rate limit, webhook
   anti-replay, observability) ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
-
-### Fixed
-
-- RateLimitingFilter owns its Jackson `ObjectMapper` (Boot 4 does not expose a
-  Jackson 2 bean) so the container image boots past filter wiring (FL-190)
-- Optimistic-lock retries use a **new** DB transaction per attempt with backoff
-  outside the TX; balance re-read re-validates overdraft before apply (FL-170 / §8.3)
-- Outbox poller no longer runs fraud HOLD synchronously inside the claim TX —
-  `AsyncFraudHandler` uses a virtual-thread executor (FL-170 / ADR-011)
-- Compose `with-app` honors `.env` for issuer/env/signing-key path (no longer hardcodes
-  `external`/`production`, which blocked IdP-less normal+internal boot)
-- Unmapped HTTP paths return **404** `NOT_FOUND` instead of **500** (e.g. sandbox
-  `/api/v1/platform/bootstrap`, `:8080/actuator/health`)
-- Swagger/OpenAPI UI returns 401 under JWT resource server: permit `/swagger-ui/**` and
-  `/v3/api-docs/**`; Bearer scheme in OpenAPI for Authorize (FL-156)
-- Audit hash chain: truncate `occurredAt` to microseconds so integrity verify survives Postgres `TIMESTAMPTZ` round-trips (CI on Linux clocks)
-- CLI shade plugin: override Boot parent merge so `./mvnw verify` can package the runnable jar
-
-### Changed
-
-- Integration guide: split host JVM vs Compose `with-app` paths for normal+internal
-  (host `./config/...` vs container `/workspace/config/...`); health on `:8081`
-  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
-- Integration guide rewritten as a standalone CLI-first loop (sandbox and normal share
-  up → token → API); CLI prompts on TTY for secrets and missing tenant fields
-  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
-
-### Added
-
 - Hardening (FL-170): virtual threads + Hikari pool defaults; concurrent posting IT;
   PIT mutation gate on `domain` (threshold 48); Bucket4j in-memory rate limit;
   rail webhook timestamp/nonce anti-replay; security headers; Dependabot;
@@ -94,3 +69,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Open-source project scaffolding (LICENSE, README, contributing docs, ADRs)
 - GitHub Actions CI workflow for `develop`
 - Layered configuration documentation
+
+### Fixed
+
+- RateLimitingFilter owns its Jackson `ObjectMapper` (Boot 4 does not expose a
+  Jackson 2 bean) so the container image boots past filter wiring (FL-190)
+- Optimistic-lock retries use a **new** DB transaction per attempt with backoff
+  outside the TX; balance re-read re-validates overdraft before apply (FL-170 / §8.3)
+- Outbox poller no longer runs fraud HOLD synchronously inside the claim TX —
+  `AsyncFraudHandler` uses a virtual-thread executor (FL-170 / ADR-011)
+- Compose `with-app` honors `.env` for issuer/env/signing-key path (no longer hardcodes
+  `external`/`production`, which blocked IdP-less normal+internal boot)
+- Unmapped HTTP paths return **404** `NOT_FOUND` instead of **500** (e.g. sandbox
+  `/api/v1/platform/bootstrap`, `:8080/actuator/health`)
+- Swagger/OpenAPI UI returns 401 under JWT resource server: permit `/swagger-ui/**` and
+  `/v3/api-docs/**`; Bearer scheme in OpenAPI for Authorize (FL-156)
+- Audit hash chain: truncate `occurredAt` to microseconds so integrity verify survives Postgres `TIMESTAMPTZ` round-trips (CI on Linux clocks)
+- CLI shade plugin: override Boot parent merge so `./mvnw verify` can package the runnable jar
+
+### Changed
+
+- Integration guide: split host JVM vs Compose `with-app` paths for normal+internal
+  (host `./config/...` vs container `/workspace/config/...`); health on `:8081`
+  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))
+- Integration guide rewritten as a standalone CLI-first loop (sandbox and normal share
+  up → token → API); CLI prompts on TTY for secrets and missing tenant fields
+  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md))

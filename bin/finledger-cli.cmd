@@ -32,8 +32,8 @@ if defined FINLEDGER_CLI_JAR (
 
 if not defined JAR if exist "%SCRIPT_DIR%\finledger-cli.jar" set "JAR=%SCRIPT_DIR%\finledger-cli.jar"
 if not defined JAR if exist "%REPO_ROOT%\finledger-cli.jar" set "JAR=%REPO_ROOT%\finledger-cli.jar"
-if not defined JAR if exist "%REPO_ROOT%\finledger-cli\target\finledger-cli-0.0.1-SNAPSHOT.jar" (
-  set "JAR=%REPO_ROOT%\finledger-cli\target\finledger-cli-0.0.1-SNAPSHOT.jar"
+if not defined JAR if exist "%REPO_ROOT%\finledger-cli\target\finledger-cli-0.1.0.jar" (
+  set "JAR=%REPO_ROOT%\finledger-cli\target\finledger-cli-0.1.0.jar"
 )
 
 if not defined JAR (
@@ -42,8 +42,8 @@ if not defined JAR (
     pushd "%REPO_ROOT%"
     call mvnw.cmd -pl finledger-cli -am package -DskipTests -q
     popd
-    if exist "%REPO_ROOT%\finledger-cli\target\finledger-cli-0.0.1-SNAPSHOT.jar" (
-      set "JAR=%REPO_ROOT%\finledger-cli\target\finledger-cli-0.0.1-SNAPSHOT.jar"
+    if exist "%REPO_ROOT%\finledger-cli\target\finledger-cli-0.1.0.jar" (
+      set "JAR=%REPO_ROOT%\finledger-cli\target\finledger-cli-0.1.0.jar"
     )
   )
 )

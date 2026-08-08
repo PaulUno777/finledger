@@ -81,7 +81,8 @@ docker compose --profile with-app up -d --build
 Health: `GET http://localhost:8081/actuator/health` (container) or
 `GET http://localhost:8080/actuator/health` (local `spring-boot:run`).
 
-Published images (after a `v*.*.*` tag): `${DOCKERHUB_USERNAME}/finledger:<semver>`.
+Published images (after a `v*.*.*` tag): `${DOCKERHUB_USERNAME}/finledger:<semver>`
+(first release: `…/finledger:0.1.0` and `:latest`).
 
 Observability (optional Compose profile — [ADR-013](docs/adr/ADR-013-observability.md)):
 

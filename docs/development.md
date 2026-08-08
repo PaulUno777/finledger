@@ -58,11 +58,16 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-190 | Finalize developer integration guide | `feature/FL-190-cto-integration-guide` | done |
 
 Work proceeds **one ticket at a time** with human PR gates. After each merge, continue
-manual/E2E validation for that ticket. **FL-190** (end of v1 track) delivered the
-copy-paste [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) for the engineering team
-(local eval → staging → production / K8s). Ops model: [ADR-015](adr/ADR-015-operational-model.md).
-Auth: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md). **FL-180** (official SDKs)
-is post-v1 — do not start until product demand justifies it.
+manual/E2E validation for that ticket.
+
+**v1 track complete** (FL-010 … FL-190). First public release line: **`v0.1.0`**
+([CHANGELOG.md](../CHANGELOG.md)). Integration guide:
+[INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md). Ops: [ADR-015](adr/ADR-015-operational-model.md).
+Auth: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
+
+**FL-180** (official multi-lang SDKs) is post-v1 — do not start until product demand
+justifies it. Release process: merge `develop` → `main`, then tag `v*.*.*` to trigger
+Hub + GitHub Release ([ADR-012](adr/ADR-012-docker-distribution.md)).
 
 ## Phase gate checklist
 

@@ -20,9 +20,9 @@ pick_dev_jar() {
   if [ ! -d "$target_dir" ]; then
     return 1
   fi
-  # Prefer exact SNAPSHOT name, else newest shaded/release jar (exclude original-*).
-  if [ -f "$target_dir/finledger-cli-0.0.1-SNAPSHOT.jar" ]; then
-    printf '%s\n' "$target_dir/finledger-cli-0.0.1-SNAPSHOT.jar"
+  # Prefer exact release name, else newest shaded/release jar (exclude original-*).
+  if [ -f "$target_dir/finledger-cli-0.1.0.jar" ]; then
+    printf '%s\n' "$target_dir/finledger-cli-0.1.0.jar"
     return 0
   fi
   found=$(ls -t "$target_dir"/finledger-cli-*.jar 2>/dev/null | grep -v '/original-' | head -n 1 || true)
