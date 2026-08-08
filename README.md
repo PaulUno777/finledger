@@ -1,6 +1,8 @@
 # FinLedger
 
 [![CI](https://github.com/PaulUno777/finledger/actions/workflows/ci.yml/badge.svg)](https://github.com/PaulUno777/finledger/actions/workflows/ci.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/PaulUno777/finledger?display_name=tag)](https://github.com/PaulUno777/finledger/releases/latest)
+[![Docker Image](https://img.shields.io/docker/v/unoteck/finledger?sort=semver&label=dockerhub)](https://hub.docker.com/r/unoteck/finledger)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/projects/jdk/21/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-green.svg)](https://spring.io/projects/spring-boot)
@@ -81,8 +83,14 @@ docker compose --profile with-app up -d --build
 Health: `GET http://localhost:8081/actuator/health` (container) or
 `GET http://localhost:8080/actuator/health` (local `spring-boot:run`).
 
-Published images (after a `v*.*.*` tag): `${DOCKERHUB_USERNAME}/finledger:<semver>`
-(first release: `…/finledger:0.1.0` and `:latest`).
+Published images ([Docker Hub](https://hub.docker.com/r/unoteck/finledger)):
+
+```bash
+docker pull unoteck/finledger:0.1.0
+# or: docker pull unoteck/finledger:latest
+```
+
+Pin `unoteck/finledger:<semver>` in production; `:latest` tracks the newest release tag.
 
 Observability (optional Compose profile — [ADR-013](docs/adr/ADR-013-observability.md)):
 
