@@ -25,6 +25,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * In-memory Bucket4j rate limit for {@code /api/v1/**} (plan §11 / FL-170). Redis deferred.
+ * Owns its {@link ObjectMapper} — Boot 4 does not expose a Jackson 2 bean for injection.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
@@ -32,12 +33,11 @@ import jakarta.servlet.http.HttpServletResponse;
 public class RateLimitingFilter extends OncePerRequestFilter {
 
     private final RateLimitProperties properties;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
 
-    public RateLimitingFilter(RateLimitProperties properties, ObjectMapper objectMapper) {
+    public RateLimitingFilter(RateLimitProperties properties) {
         this.properties = properties;
-        this.objectMapper = objectMapper;
     }
 
     @Override

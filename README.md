@@ -56,8 +56,9 @@ docker compose --profile sandbox up -d --build
 # Read config/sandbox-ready.txt (or container logs) for copy-paste curls
 ```
 
-Production / CTO checklist outline: [docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md)
-(finalized after remaining roadmap validation). Ops model: [ADR-015](docs/adr/ADR-015-operational-model.md).
+Developer integration guide (local eval → staging → production / K8s):
+[docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md). Ops model:
+[ADR-015](docs/adr/ADR-015-operational-model.md).
 Non-official client patterns: [`sdk-reference/`](sdk-reference/) (idempotency, HMAC,
 retry, `traceparent` — no SemVer). OpenAPI path contract:
 [`docs/contracts/openapi-paths.json`](docs/contracts/openapi-paths.json).
@@ -80,7 +81,8 @@ docker compose --profile with-app up -d --build
 Health: `GET http://localhost:8081/actuator/health` (container) or
 `GET http://localhost:8080/actuator/health` (local `spring-boot:run`).
 
-Published images (after a `v*.*.*` tag): `${DOCKERHUB_USERNAME}/finledger:<semver>`.
+Published images (after a `v*.*.*` tag): `${DOCKERHUB_USERNAME}/finledger:<semver>`
+(first release: `…/finledger:0.1.0` and `:latest`).
 
 Observability (optional Compose profile — [ADR-013](docs/adr/ADR-013-observability.md)):
 

@@ -30,8 +30,8 @@ export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/rea
 ./mvnw -pl finledger spring-boot:run
 ```
 
-CTO / production integration outline: [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)
-(developer-focused; K8s go-live finalized in FL-190). Ops model: [ADR-015](adr/ADR-015-operational-model.md).
+Developer integration guide (eval through production; Hub / OIDC / K8s in §7–§8):
+[INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md). Ops model: [ADR-015](adr/ADR-015-operational-model.md).
 Auth model: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).
 **Who issues tokens / claim contract / BFF:** [auth-integration.md](auth-integration.md).
 
