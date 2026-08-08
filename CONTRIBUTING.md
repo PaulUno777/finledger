@@ -9,6 +9,39 @@ FinLedger is an ultra-secure accounting ledger for aggregator payment systems. I
 Prefer hardening double-entry, idempotency, auditability, and tenant isolation over
 expanding surface area.
 
+## How to contribute (fork → PR)
+
+**Do not ask for write access** to this repository. Only the maintainer merges into
+`develop` and `main`.
+
+1. **Fork** the repo and clone your fork.
+2. Branch from up-to-date `develop`: `feature/FL-XXX-short-slug` or a descriptive
+   `fix/…` / `docs/…` name.
+3. Open a **pull request targeting `develop`** (never open feature PRs into `main`).
+4. Wait for CI (`Maven verify`, `Docker build (no push)`). Fix failures on your branch.
+5. The maintainer reviews and merges. You will not be able to merge into `develop` or
+   `main` yourself.
+
+Release flow (maintainer only): PR `develop` → `main`, then tag `v*.*.*` to publish
+the Docker image and GitHub Release.
+
+### Branch protection (enforced on GitHub)
+
+| Branch | Protection | Required |
+|--------|------------|----------|
+| `develop` | No force-push / deletion; PRs only | CI green (`Maven verify`, `Docker build`) |
+| `main` | No force-push / deletion; PRs only | CI green (`Maven verify`, `Docker build`) |
+
+**Access model:** this is a personal repository — GitHub does not allow
+“push restricted to user X” on personal repos. Effective control is:
+
+1. **Do not grant Write/Admin** to anyone else (Settings → Collaborators).
+2. External work lands via **fork + PR**; only accounts with Write can merge, and
+   that should remain the maintainer alone.
+3. Branch rules still block force-push and require a PR + CI before merge.
+
+Tags (`v*.*.*`) and Hub publishes are maintainer-owned.
+
 ## Branch model
 
 | Branch | Role |
@@ -17,7 +50,7 @@ expanding surface area.
 | `develop` | Integration base for all new work |
 | `feature/FL-XXX-short-slug` | One roadmap ticket / phase |
 
-PRs target `develop`. Release PRs into `main` are human-owned.
+PRs target `develop`. Release PRs into `main` are human-owned (maintainer).
 
 ## Phase gates
 
