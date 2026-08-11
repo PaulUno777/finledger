@@ -1,5 +1,5 @@
 {
-  "description" : "FL-160 OpenAPI path/operation inventory — regenerate intentionally when API changes",
+  "description" : "OpenAPI path/operation inventory — regenerate intentionally when API changes",
   "operations" : [ {
     "path" : "/api/v1/platform/provision",
     "method" : "POST",

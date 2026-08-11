@@ -315,7 +315,6 @@ routes.
 
 - `STANDALONE` and `AGGREGATOR` are **roots** — no `parentTenantId` (`422 INVALID_TENANT_HIERARCHY` if set).
 - `SUB_MERCHANT` **requires** `parentTenantId` pointing at an existing `AGGREGATOR`.
-- There is no `PLATFORM`, `ORGANIZATION`, or other type. Unknown values → `400 INVALID_ARGUMENT`.
 
 **`AccountType`:** `MERCHANT_WALLET`, `AGGREGATOR_POOL`, `RAIL_CLEARING`,
 `SUSPENSE_HOLD`, `FEE_PLATFORM_REVENUE`, `FEE_INTERCHANGE_COST`,
