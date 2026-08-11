@@ -12,7 +12,10 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Spec;
 import picocli.CommandLine.Model.CommandSpec;
 
-@Command(name = "account", description = "Ledger account provisioning", subcommands = AccountCreateCommand.class)
+@Command(name = "account", description = "Ledger account provisioning", subcommands = {
+        AccountCreateCommand.class,
+        AccountListCommand.class
+})
 public class AccountCommand implements Runnable {
     @Override
     public void run() {
@@ -50,5 +53,21 @@ class AccountCreateCommand implements Callable<Integer> {
         body.put("allowsOverdraft", overdraft);
         String path = "/api/v1/tenants/" + tenantId + "/accounts";
         return CliSupport.runMutating(spec, client -> client.post(path, body));
+    }
+}
+
+@Command(name = "list", description = "GET /api/v1/tenants/{id}/accounts")
+class AccountListCommand implements Callable<Integer> {
+
+    @Spec
+    CommandSpec spec;
+
+    @Option(names = "--tenant-id", required = true, description = "Tenant UUID")
+    UUID tenantId;
+
+    @Override
+    public Integer call() {
+        String path = "/api/v1/tenants/" + tenantId + "/accounts";
+        return CliSupport.runMutating(spec, client -> client.get(path));
     }
 }

@@ -1,5 +1,6 @@
 package com.pauluno.finledger.presentation.rest.account;
 
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,7 @@ import com.pauluno.finledger.application.dto.LedgerAccountResult;
 import com.pauluno.finledger.application.port.in.CreateLedgerAccountUseCase;
 import com.pauluno.finledger.application.port.in.GetAccountBalanceUseCase;
 import com.pauluno.finledger.application.port.in.GetLedgerAccountUseCase;
+import com.pauluno.finledger.application.port.in.ListLedgerAccountsUseCase;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -30,15 +32,23 @@ public class LedgerAccountController {
     private final CreateLedgerAccountUseCase createLedgerAccountUseCase;
     private final GetLedgerAccountUseCase getLedgerAccountUseCase;
     private final GetAccountBalanceUseCase getAccountBalanceUseCase;
+    private final ListLedgerAccountsUseCase listLedgerAccountsUseCase;
 
     public LedgerAccountController(
             CreateLedgerAccountUseCase createLedgerAccountUseCase,
             GetLedgerAccountUseCase getLedgerAccountUseCase,
-            GetAccountBalanceUseCase getAccountBalanceUseCase
+            GetAccountBalanceUseCase getAccountBalanceUseCase,
+            ListLedgerAccountsUseCase listLedgerAccountsUseCase
     ) {
         this.createLedgerAccountUseCase = createLedgerAccountUseCase;
         this.getLedgerAccountUseCase = getLedgerAccountUseCase;
         this.getAccountBalanceUseCase = getAccountBalanceUseCase;
+        this.listLedgerAccountsUseCase = listLedgerAccountsUseCase;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<LedgerAccountResult>> list(@PathVariable UUID tenantId) {
+        return ResponseEntity.ok(listLedgerAccountsUseCase.execute(tenantId));
     }
 
     @PostMapping

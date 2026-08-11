@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -99,6 +100,11 @@ class GetAccountBalanceServiceTest {
         @Override
         public Optional<LedgerAccount> findByIdForTenant(UUID id, UUID tenantId) {
             return findById(id).filter(a -> a.tenantId().equals(tenantId));
+        }
+
+        @Override
+        public List<LedgerAccount> listByTenant(UUID tenantId) {
+            return store.values().stream().filter(a -> a.tenantId().equals(tenantId)).toList();
         }
     }
 

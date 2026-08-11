@@ -42,27 +42,34 @@ Those credentials are **dev-only**.
 
 ### Runtime profiles & JWT (ADR-016)
 
-| Profile | Purpose | Issuer |
-|---------|---------|--------|
-| `sandbox` | Seeded eval | In-box issuer; **ephemeral signing keys per boot** |
-| `normal` | Real deployments (default) | External OIDC (default) **or** in-box issuer (FL-156 durable secrets) |
+| Profile   | Purpose                    | Issuer                                                                |
+| --------- | -------------------------- | --------------------------------------------------------------------- |
+| `sandbox` | Seeded eval                | In-box issuer; **ephemeral signing keys per boot**                    |
+| `normal`  | Real deployments (default) | External OIDC (default) **or** in-box issuer (FL-156 durable secrets) |
 
 **Invariants:** JWT verification always on (RS256/ES256, `exp`, ledger max TTL, `tenant_id` +
 scopes). No auth-off / `trust_edge` / `finledger.security.mode`. Long-lived `client_secret`
 is for **minting only**, never the API Bearer.
 
-| Property | Env | Notes |
-|----------|-----|-------|
-| `spring.profiles.active` | `SPRING_PROFILES_ACTIVE` | `sandbox` \| `normal` only |
-| `finledger.security.issuer` | `FINLEDGER_SECURITY_ISSUER` | `external` (default) \| `internal` |
-| `finledger.security.max-token-ttl` | `FINLEDGER_SECURITY_MAX_TOKEN_TTL` | Default `15m` |
-| `finledger.sandbox.client-id` / `client-secret` | `FINLEDGER_SANDBOX_CLIENT_ID` / `_SECRET` | Sandbox mint only; blank secret → generated at boot |
-| `finledger.sandbox.scenario` | `FINLEDGER_SANDBOX_SCENARIO` | `simple` (default) \| `aggregator` \| `remittance`; CLI `sandbox init` |
-| `finledger.security.internal.issuer-uri` | `FINLEDGER_INTERNAL_ISSUER_URI` | Distinct URI for normal+internal (default `http://localhost:8080/internal`) |
-| `finledger.security.internal.signing-key-pem` / `signing-key-path` | `FINLEDGER_INTERNAL_SIGNING_KEY_PEM` / `_PATH` | PKCS#8 PEM; **required** for normal+internal (never auto-generated) |
-| `finledger.security.internal.clients[]` | `FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_*` | Tenant-bound machine clients (`client-id`, `client-secret`, `tenant-id`, optional `scopes`) |
-| `finledger.platform.bootstrap-secret` | `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET` | One-shot cold-start (FL-158); blank → bootstrap endpoint 404 |
-| `finledger.platform.bootstrap-token-ttl` | `FINLEDGER_PLATFORM_BOOTSTRAP_TOKEN_TTL` | Cap by max-token-ttl; default `15m` |
+| Property                                                           | Env                                            | Notes                                                                                       |
+| ------------------------------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `spring.profiles.active`                                           | `SPRING_PROFILES_ACTIVE`                       | `sandbox` \| `normal` only                                                                  |
+| `finledger.security.issuer`                                        | `FINLEDGER_SECURITY_ISSUER`                    | `external` (default) \| `internal`                                                          |
+| `finledger.security.max-token-ttl`                                 | `FINLEDGER_SECURITY_MAX_TOKEN_TTL`             | Default `15m` (user / pass-through)                                                         |
+| `finledger.security.max-token-ttl-machine`                         | `FINLEDGER_SECURITY_MAX_TOKEN_TTL_MACHINE`     | Default `1h` when `token_use=machine` or `azp` allowlisted                                  |
+| `finledger.security.machine-azp-allowlist`                         | `FINLEDGER_SECURITY_MACHINE_AZP_ALLOWLIST`     | Comma-separated authorized-party ids for machine TTL                                        |
+| `finledger.security.claim.tenant-id`                               | `FINLEDGER_SECURITY_CLAIM_TENANT`              | JWT claim name for tenant (default `tenant_id`)                                             |
+| `finledger.security.claim.scopes`                                  | `FINLEDGER_SECURITY_CLAIM_SCOPES`              | JWT claim name for scopes (default `scope`)                                                 |
+| `finledger.security.scope-aliases`                                 | `FINLEDGER_SECURITY_SCOPE_ALIASES`             | Map e.g. `ledger.write=ledger:write`                                                        |
+| `finledger.security.issuer-aliases`                                | `FINLEDGER_SECURITY_ISSUER_ALIASES`            | Extra accepted `iss` values when discovery issuer ≠ JWT `iss`                               |
+| JWKS readiness (external issuer)                                   | —                                              | Empty/unavailable JWKS marks **readiness** DOWN (`/actuator/health/readiness`); liveness stays UP. Prefer explicit `jwk-set-uri` when discovery `issuer` ≠ JWT `iss`. |
+| `finledger.sandbox.client-id` / `client-secret`                    | `FINLEDGER_SANDBOX_CLIENT_ID` / `_SECRET`      | Sandbox mint only; blank secret → generated at boot                                         |
+| `finledger.sandbox.scenario`                                       | `FINLEDGER_SANDBOX_SCENARIO`                   | `simple` (default) \| `aggregator` \| `remittance`; CLI `sandbox init`                      |
+| `finledger.security.internal.issuer-uri`                           | `FINLEDGER_INTERNAL_ISSUER_URI`                | Distinct URI for normal+internal (default `http://localhost:8080/internal`)                 |
+| `finledger.security.internal.signing-key-pem` / `signing-key-path` | `FINLEDGER_INTERNAL_SIGNING_KEY_PEM` / `_PATH` | PKCS#8 PEM; **required** for normal+internal (never auto-generated)                         |
+| `finledger.security.internal.clients[]`                            | `FINLEDGER_SECURITY_INTERNAL_CLIENTS_0_*`      | Tenant-bound machine clients (`client-id`, `client-secret`, `tenant-id`, optional `scopes`) |
+| `finledger.platform.bootstrap-secret`                              | `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET`          | One-shot cold-start (FL-158); blank → bootstrap endpoint 404                                |
+| `finledger.platform.bootstrap-token-ttl`                           | `FINLEDGER_PLATFORM_BOOTSTRAP_TOKEN_TTL`       | Cap by max-token-ttl; default `15m`                                                         |
 
 Sandbox Compose: `SPRING_PROFILES_ACTIVE=sandbox` → `issuer=internal` (ephemeral keys). Mint:
 `POST /api/v1/auth/token` or `./bin/finledger-cli auth token` (optional `--tenant-id` for any
@@ -101,32 +108,34 @@ or pass `--project-dir`. Template: `finledger.env.example` → `.env` (gitignore
 Launcher: `./bin/finledger-cli` (POSIX) / `bin\finledger-cli.cmd` (Windows). No args opens the
 interactive REPL. Prod: colocate `finledger-cli.jar` with the script, or set `FINLEDGER_CLI_JAR`.
 
-| Command | Purpose |
-|---------|---------|
-| `doctor` | Docker / compose / `.env` / profile interlock; **fails** if actuator unhealthy |
-| `status` | `compose ps` + `GET …/actuator/health` |
-| `health` / `ready` | Thin actuator probes (`FINLEDGER_MANAGEMENT_URL`; ready falls back to health UP) |
-| `up [--profile sandbox\|with-app] [--build]` | `docker compose up -d` |
-| `down` | `docker compose down` (no `-v` — preserves Postgres data) |
-| `sandbox init [--scenario …]` | Write `FINLEDGER_SANDBOX_SCENARIO` into `.env` (no Compose start) |
-| `platform bootstrap` | One-shot `platform:admin` JWT (FL-158; normal+internal) |
-| `restart [--service app-sandbox\|app]` | Restart app container |
-| `logs [-f] [--service …]` | Compose logs |
-| `auth token [--tenant-id]` | Mint sandbox/internal JWT; session remint in process/shell |
-| `--dry-run` (global) | Print mutating API request without sending HTTP |
+| Command                                      | Purpose                                                                          |
+| -------------------------------------------- | -------------------------------------------------------------------------------- |
+| `doctor`                                     | Docker / compose / `.env` / profile interlock; **fails** if actuator unhealthy   |
+| `status`                                     | `compose ps` + `GET …/actuator/health`                                           |
+| `health` / `ready`                           | Thin actuator probes (`FINLEDGER_MANAGEMENT_URL`; ready falls back to health UP) |
+| `up [--profile sandbox\|with-app] [--build]` | `docker compose up -d`                                                           |
+| `down`                                       | `docker compose down` (no `-v` — preserves Postgres data)                        |
+| `sandbox init [--scenario …]`                | Write `FINLEDGER_SANDBOX_SCENARIO` into `.env` (no Compose start)                |
+| `platform bootstrap`                         | One-shot `platform:admin` JWT (FL-158; normal+internal)                          |
+| `restart [--service app-sandbox\|app]`       | Restart app container                                                            |
+| `logs [-f] [--service …]`                    | Compose logs                                                                     |
+| `auth token [--tenant-id]`                   | Mint sandbox/internal JWT; session remint in process/shell                       |
+| `--dry-run` (global)                         | Print mutating API request without sending HTTP                                  |
 
 ### AuthN / AuthZ (JWT — always)
 
-| Item | Contract |
-|------|----------|
-| Algorithms | JWT `alg` must be `RS256` or `ES256` |
-| Lifetime | `exp` required; ledger-enforced max TTL (ADR-016 / FL-154+) |
-| Scopes | `ledger:read`, `ledger:write`, `ledger:admin`; control-plane `platform:admin` (FL-158) |
-| Tenant binding | Claim `tenant_id` (UUID) must match `/api/v1/tenants/{tenantId}/…` (skipped for create + `/platform/**`) |
-| Create tenant | `POST /api/v1/tenants` requires `ledger:admin` or `platform:admin`; optional `id` only with `platform:admin` |
-| Public | `/actuator/health`, `/actuator/prometheus`; settlement webhooks |
-| TLS | Terminate TLS 1.3 at the reverse proxy / load balancer in front of the service |
-| mTLS | Additive at the edge/mesh — does not replace JWT |
+| Item           | Contract                                                                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Algorithms     | JWT `alg` must be `RS256` or `ES256`                                                                                                                                   |
+| Lifetime       | `exp` required; ledger-enforced max TTL (ADR-016 / FL-154+)                                                                                                            |
+| Scopes         | `ledger:read`, `ledger:write`, `ledger:admin`; control-plane `platform:admin` (FL-158)                                                                                 |
+| Tenant binding | Claim `tenant_id` (UUID) must match path (skipped for create + `/platform/**`; parent-admin **account** routes: [ADR-018](adr/ADR-018-parent-admin-child-accounts.md)) |
+| Create tenant  | `POST /api/v1/tenants` requires `ledger:admin` or `platform:admin`; optional `id` only with `platform:admin`                                                           |
+| Provision      | `POST /api/v1/platform/provision` — `platform:admin`, no `tenant_id`; recipes `STANDALONE` \| `AGGREGATOR`                                                             |
+| Machine tokens | Refresh **per saga activity**; do not cache a Bearer for the pod lifetime                                                                                              |
+| Public         | `/actuator/health`, `/actuator/prometheus`; settlement webhooks                                                                                                        |
+| TLS            | Terminate TLS 1.3 at the reverse proxy / load balancer in front of the service                                                                                         |
+| mTLS           | Additive at the edge/mesh — does not replace JWT                                                                                                                       |
 
 If Flyway reports a checksum mismatch after a migration file was edited, recreate
 the local volume: `docker compose down -v && docker compose up -d`.
@@ -146,14 +155,14 @@ In containers, mount overrides at `/workspace/config/` (image default
 
 ## Docker image contract (FL-140)
 
-| Item | Value |
-|------|--------|
-| Image | `unoteck/finledger:<semver>` and `:latest` (published on tag `v*.*.*`; current `0.1.0`) |
-| Ports | `8080` (HTTP API), `8081` (management / actuator) |
-| Health | `GET http://localhost:8081/actuator/health` |
-| User | non-root `finledger` (UID 1000) |
-| Config volume | `/workspace/config` |
-| Extra JVM flags | `JAVA_OPTS` (optional) |
+| Item            | Value                                                                                   |
+| --------------- | --------------------------------------------------------------------------------------- |
+| Image           | `unoteck/finledger:<semver>` and `:latest` (published on tag `v*.*.*`; current `0.1.0`) |
+| Ports           | `8080` (HTTP API), `8081` (management / actuator)                                       |
+| Health          | `GET http://localhost:8081/actuator/health`                                             |
+| User            | non-root `finledger` (UID 1000)                                                         |
+| Config volume   | `/workspace/config`                                                                     |
+| Extra JVM flags | `JAVA_OPTS` (optional)                                                                  |
 
 Local Compose:
 
@@ -174,48 +183,48 @@ docker compose --profile with-app --profile observability up -d --build
 
 ### Observability (FL-150)
 
-| Item | Contract |
-|------|----------|
-| Traces | Micrometer Tracing + OpenTelemetry (W3C `traceparent`) |
-| OTLP | Set `OTEL_EXPORTER_OTLP_ENDPOINT` / `management.opentelemetry.tracing.export.otlp.endpoint` to export; unset = no export |
-| Metrics | `GET /actuator/prometheus` (public; restrict management port in prod) |
-| Logs | Pattern + MDC locally; JSON under `prod` / `json-logs` |
-| Sampling | `1.0` default; `0.1` in `prod` |
-| Compose | Profile `observability` → Prometheus `:9090`, Grafana `:3000` (admin/admin) |
+| Item     | Contract                                                                                                                 |
+| -------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Traces   | Micrometer Tracing + OpenTelemetry (W3C `traceparent`)                                                                   |
+| OTLP     | Set `OTEL_EXPORTER_OTLP_ENDPOINT` / `management.opentelemetry.tracing.export.otlp.endpoint` to export; unset = no export |
+| Metrics  | `GET /actuator/prometheus` (public; restrict management port in prod)                                                    |
+| Logs     | Pattern + MDC locally; JSON under `prod` / `json-logs`                                                                   |
+| Sampling | `1.0` default; `0.1` in `prod`                                                                                           |
+| Compose  | Profile `observability` → Prometheus `:9090`, Grafana `:3000` (admin/admin)                                              |
 
 See [ADR-013](adr/ADR-013-observability.md).
 
 ## Common environment variables
 
-| Variable | Purpose |
-|----------|---------|
-| `SPRING_PROFILES_ACTIVE` | `sandbox` \| `normal` |
-| `SPRING_DATASOURCE_URL` | JDBC URL |
-| `SPRING_DATASOURCE_USERNAME` | DB user |
-| `SPRING_DATASOURCE_PASSWORD` | DB password |
-| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | Datasource aliases (Compose / prod) |
-| `SPRING_FLYWAY_USER` / `SPRING_FLYWAY_PASSWORD` | Flyway credentials (often superuser) |
-| `SPRING_CONFIG_ADDITIONAL_LOCATION` | Optional extra config locations |
-| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | OIDC issuer (`issuer=external`) |
-| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | JWKS URI alternative to issuer |
-| `FINLEDGER_ENV` | `local` (default) or `production` — production forbids profile `sandbox` |
-| `FINLEDGER_SECURITY_ISSUER` | `external` \| `internal` |
-| `FINLEDGER_SECURITY_MAX_TOKEN_TTL` | Ledger max JWT lifetime (default `15m`) |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Optional OTLP traces endpoint |
-| `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET` | HMAC secret for inbound rail settlement webhooks |
-| `FINLEDGER_RAIL_WEBHOOK_MAX_SKEW_SECONDS` | Anti-replay timestamp skew window (default `300`) |
-| `FINLEDGER_RATE_LIMIT_ENABLED` | In-memory Bucket4j on `/api/v1/**` (default `true`) |
-| `FINLEDGER_RATE_LIMIT_CAPACITY` / `_REFILL_PER_SECOND` | Token bucket size / refill (defaults `120` / `60`) |
-| `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE` | Hikari pool (default `20`; keep well under Postgres `max_connections`) |
-| `spring.threads.virtual.enabled` | Virtual threads (default `true` in embedded `application.yaml`) |
-| `FINLEDGER_BASE_URL` | CLI only — FinLedger API base URL (default `http://localhost:8080`) |
-| `FINLEDGER_TOKEN` | CLI only — Bearer JWT for `/api/v1` |
-| `FINLEDGER_MANAGEMENT_URL` | CLI only — actuator base (default `http://localhost:8081`) |
-| `FINLEDGER_CLI_JAR` | CLI launcher — absolute path to shaded jar (prod) |
-| `FINLEDGER_FRAUD_ENABLED` | Enable in-box rule-based risk check (`true` / default `false`) |
-| `SERVER_PORT` | HTTP port (default `8080`) |
-| `MANAGEMENT_SERVER_PORT` | Actuator port (image default `8081`) |
-| `JAVA_OPTS` | Extra JVM flags for the container entrypoint |
+| Variable                                                | Purpose                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `SPRING_PROFILES_ACTIVE`                                | `sandbox` \| `normal`                                                    |
+| `SPRING_DATASOURCE_URL`                                 | JDBC URL                                                                 |
+| `SPRING_DATASOURCE_USERNAME`                            | DB user                                                                  |
+| `SPRING_DATASOURCE_PASSWORD`                            | DB password                                                              |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`                | Datasource aliases (Compose / prod)                                      |
+| `SPRING_FLYWAY_USER` / `SPRING_FLYWAY_PASSWORD`         | Flyway credentials (often superuser)                                     |
+| `SPRING_CONFIG_ADDITIONAL_LOCATION`                     | Optional extra config locations                                          |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`  | OIDC issuer (`issuer=external`)                                          |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` | JWKS URI alternative to issuer                                           |
+| `FINLEDGER_ENV`                                         | `local` (default) or `production` — production forbids profile `sandbox` |
+| `FINLEDGER_SECURITY_ISSUER`                             | `external` \| `internal`                                                 |
+| `FINLEDGER_SECURITY_MAX_TOKEN_TTL`                      | Ledger max JWT lifetime (default `15m`)                                  |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`                           | Optional OTLP traces endpoint                                            |
+| `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET`                    | HMAC secret for inbound rail settlement webhooks                         |
+| `FINLEDGER_RAIL_WEBHOOK_MAX_SKEW_SECONDS`               | Anti-replay timestamp skew window (default `300`)                        |
+| `FINLEDGER_RATE_LIMIT_ENABLED`                          | In-memory Bucket4j on `/api/v1/**` (default `true`)                      |
+| `FINLEDGER_RATE_LIMIT_CAPACITY` / `_REFILL_PER_SECOND`  | Token bucket size / refill (defaults `120` / `60`)                       |
+| `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE`            | Hikari pool (default `20`; keep well under Postgres `max_connections`)   |
+| `spring.threads.virtual.enabled`                        | Virtual threads (default `true` in embedded `application.yaml`)          |
+| `FINLEDGER_BASE_URL`                                    | CLI only — FinLedger API base URL (default `http://localhost:8080`)      |
+| `FINLEDGER_TOKEN`                                       | CLI only — Bearer JWT for `/api/v1`                                      |
+| `FINLEDGER_MANAGEMENT_URL`                              | CLI only — actuator base (default `http://localhost:8081`)               |
+| `FINLEDGER_CLI_JAR`                                     | CLI launcher — absolute path to shaded jar (prod)                        |
+| `FINLEDGER_FRAUD_ENABLED`                               | Enable in-box rule-based risk check (`true` / default `false`)           |
+| `SERVER_PORT`                                           | HTTP port (default `8080`)                                               |
+| `MANAGEMENT_SERVER_PORT`                                | Actuator port (image default `8081`)                                     |
+| `JAVA_OPTS`                                             | Extra JVM flags for the container entrypoint                             |
 
 Production (`FINLEDGER_ENV=production`, profile `normal`) expects secrets via env
 (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, OIDC URI) — never commit real values.

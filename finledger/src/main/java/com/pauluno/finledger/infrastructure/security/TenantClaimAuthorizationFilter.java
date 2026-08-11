@@ -18,7 +18,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Binds JWT claim {@code tenant_id} to {@code /api/v1/tenants/{tenantId}/…} (ADR-016).
+ * Binds JWT tenant claim to {@code /api/v1/tenants/{tenantId}/…} (ADR-016, ADR-018).
  */
 public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
 
@@ -26,6 +26,27 @@ public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
 
     private static final Pattern TENANT_SCOPED_PATH =
             Pattern.compile("^/api/v1/tenants/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(/|$)");
+
+    private final TenantHierarchyAccessChecker hierarchyAccessChecker;
+    private final String tenantIdClaim;
+
+    public TenantClaimAuthorizationFilter() {
+        this(null, TENANT_ID_CLAIM);
+    }
+
+    public TenantClaimAuthorizationFilter(TenantHierarchyAccessChecker hierarchyAccessChecker) {
+        this(hierarchyAccessChecker, TENANT_ID_CLAIM);
+    }
+
+    public TenantClaimAuthorizationFilter(
+            TenantHierarchyAccessChecker hierarchyAccessChecker,
+            String tenantIdClaim
+    ) {
+        this.hierarchyAccessChecker = hierarchyAccessChecker;
+        this.tenantIdClaim = tenantIdClaim == null || tenantIdClaim.isBlank()
+                ? TENANT_ID_CLAIM
+                : tenantIdClaim;
+    }
 
     @Override
     protected void doFilterInternal(
@@ -46,7 +67,7 @@ public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
         }
 
         String pathTenantId = matcher.group(1);
-        if (!jwtClaimMatches(pathTenantId)) {
+        if (!jwtClaimMatches(pathTenantId, path)) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write(
@@ -58,14 +79,18 @@ public class TenantClaimAuthorizationFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    private static boolean jwtClaimMatches(String pathTenantId) {
+    private boolean jwtClaimMatches(String pathTenantId, String path) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof JwtAuthenticationToken jwtAuth)) {
             return true;
         }
         Jwt jwt = jwtAuth.getToken();
-        String claimTenantId = jwt.getClaimAsString(TENANT_ID_CLAIM);
-        return claimTenantId != null && !claimTenantId.isBlank() && claimTenantId.equals(pathTenantId);
+        String claimTenantId = jwt.getClaimAsString(tenantIdClaim);
+        if (claimTenantId != null && !claimTenantId.isBlank() && claimTenantId.equals(pathTenantId)) {
+            return true;
+        }
+        return hierarchyAccessChecker != null
+                && hierarchyAccessChecker.allowsParentAdminOnAccountRoute(path, claimTenantId, authentication);
     }
 
     private static boolean isCreateTenant(HttpServletRequest request, String path) {

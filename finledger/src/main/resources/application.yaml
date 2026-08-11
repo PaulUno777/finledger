@@ -33,6 +33,13 @@ management:
   endpoint:
     health:
       show-details: when_authorized
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,jwks
 
   tracing:
     sampling:
@@ -51,6 +58,12 @@ finledger:
     # external (default) | internal — see docs/auth-integration.md
     issuer: ${FINLEDGER_SECURITY_ISSUER:external}
     max-token-ttl: ${FINLEDGER_SECURITY_MAX_TOKEN_TTL:15m}
+    max-token-ttl-machine: ${FINLEDGER_SECURITY_MAX_TOKEN_TTL_MACHINE:1h}
+    machine-azp-allowlist: ${FINLEDGER_SECURITY_MACHINE_AZP_ALLOWLIST:}
+    issuer-aliases: ${FINLEDGER_SECURITY_ISSUER_ALIASES:}
+    claim:
+      tenant-id: ${FINLEDGER_SECURITY_CLAIM_TENANT:tenant_id}
+      scopes: ${FINLEDGER_SECURITY_CLAIM_SCOPES:scope}
     internal:
       issuer-uri: ${FINLEDGER_INTERNAL_ISSUER_URI:http://localhost:8080/internal}
       signing-key-pem: ${FINLEDGER_INTERNAL_SIGNING_KEY_PEM:}

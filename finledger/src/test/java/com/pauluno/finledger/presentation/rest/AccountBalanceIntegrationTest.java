@@ -162,6 +162,31 @@ class AccountBalanceIntegrationTest {
                 .andExpect(jsonPath("$.held").value("0.00"));
     }
 
+    @Test
+    void should_list_accounts_for_tenant() throws Exception {
+        UUID tenantId = createTenant("list-accounts");
+        UUID first = createAccount(tenantId, "alpha", "MERCHANT_WALLET", false);
+        UUID second = createAccount(tenantId, "beta", "RAIL_CLEARING", true);
+
+        mockMvc.perform(get("/api/v1/tenants/{tenantId}/accounts", tenantId)
+                        .with(tenantReadWriteJwt(tenantId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].accountId").value(first.toString()))
+                .andExpect(jsonPath("$[0].type").value("MERCHANT_WALLET"))
+                .andExpect(jsonPath("$[1].accountId").value(second.toString()))
+                .andExpect(jsonPath("$[1].type").value("RAIL_CLEARING"));
+    }
+
+    @Test
+    void should_reject_empty_create_account_body_with_400() throws Exception {
+        UUID tenantId = createTenant("empty-body");
+        mockMvc.perform(post("/api/v1/tenants/{tenantId}/accounts", tenantId)
+                        .with(tenantReadWriteJwt(tenantId))
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_ARGUMENT"));
+    }
+
     private UUID createTenant(String name) throws Exception {
         String payload = objectMapper.writeValueAsString(Map.of(
                 "name", name,
