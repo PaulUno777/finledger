@@ -157,7 +157,7 @@ In containers, mount overrides at `/workspace/config/` (image default
 
 | Item            | Value                                                                                   |
 | --------------- | --------------------------------------------------------------------------------------- |
-| Image           | `unoteck/finledger:<semver>` and `:latest` (published on tag `v*.*.*`; current `0.1.0`) |
+| Image           | `unoteck/finledger:<semver>` and `:latest` (published on tag `v*.*.*`; current `0.2.0`) |
 | Ports           | `8080` (HTTP API), `8081` (management / actuator)                                       |
 | Health          | `GET http://localhost:8081/actuator/health`                                             |
 | User            | non-root `finledger` (UID 1000)                                                         |

@@ -55,7 +55,7 @@ PRs are human-owned (agents do not open them unless asked).
 | FL-160 | Contract tests + in-repo `/sdk-reference/` (non-official)                   | `feature/FL-160-contracts-sdk-ref`        | done                   |
 | FL-170 | Hardening (OL/outbox correctness, then PIT/rate-limit)                      | `feature/FL-170-hardening`                | done                   |
 | FL-180 | Post-v1 official multi-lang SDKs (separate repos)                           | `feature/FL-180-official-sdks`            | pending                |
-| FL-181 | Integrator contract (Token Profile, list accounts, ADR-018, ops, provision) | `feature/FL-181-integrator-contract`      | in progress            |
+| FL-181 | Integrator contract (Token Profile, list accounts, ADR-018, ops, provision) | `feature/FL-181-integrator-contract`      | done                   |
 | FL-182 | Clean sandbox eval path / reset before release (simple + aggregator)        | `feature/FL-182-sandbox-baseline`         | pending                |
 | FL-183 | Sandbox ↔ `platform/provision` recipe parity                                | `feature/FL-183-sandbox-provision-parity` | pending                |
 | FL-184 | External Go operator CLI (ADR-019)                                          | `feature/FL-184-go-cli`                   | pending                |
@@ -65,7 +65,8 @@ PRs are human-owned (agents do not open them unless asked).
 Work proceeds **one ticket at a time** with human PR gates. After each merge, continue
 manual/E2E validation for that ticket.
 
-**v1 track complete** (FL-010 … FL-190). First public release line: **`v0.1.0`**
+**v1 track complete** (FL-010 … FL-190). Current public release line: **`v0.2.0`**
+(FL-181 integrator contract; first public tag was `v0.1.0`)
 ([CHANGELOG.md](../CHANGELOG.md)). Integration guide:
 [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md). Ops: [ADR-015](adr/ADR-015-operational-model.md).
 Auth: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md).

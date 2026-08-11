@@ -158,7 +158,7 @@ SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8180/realm
 FINLEDGER_SECURITY_CLAIM_SCOPES=ledger_scope \
 SERVER_PORT=18080 MANAGEMENT_SERVER_PORT=18081 \
 # … datasource env …
-java -jar finledger/target/finledger-0.1.0.jar
+java -jar finledger/target/finledger-0.2.0.jar
 
 # Platform token (no tenant_id) then tenant worker
 curl -s http://localhost:8180/realms/finledger/protocol/openid-connect/token \
@@ -421,10 +421,10 @@ FinLedger (Hub image) → Your Postgres (FORCE RLS)
 
 ### 7.1 Checklist
 
-1. Pull `unoteck/finledger:<semver>` (current: `0.1.0`; also `:latest` after each release tag).
+1. Pull `unoteck/finledger:<semver>` (current: `0.2.0`; also `:latest` after each release tag).
 
    ```bash
-   docker pull unoteck/finledger:0.1.0
+   docker pull unoteck/finledger:0.2.0
    ```
 
 2. `SPRING_PROFILES_ACTIVE=normal`, `FINLEDGER_ENV=production`, `FINLEDGER_SECURITY_ISSUER=external`.
@@ -483,7 +483,7 @@ spec:
     spec:
       containers:
         - name: finledger
-          image: unoteck/finledger:0.1.0 # pin semver; avoid :latest in prod
+          image: unoteck/finledger:0.2.0 # pin semver; avoid :latest in prod
           ports:
             - name: http
               containerPort: 8080

@@ -2,9 +2,9 @@
 
 ## Supported versions
 
-FinLedger is pre-1.0 (`0.x`). The current supported release line is **`0.1.x`**
-(first public tag: `v0.1.0`). Security fixes land on the active `develop` line and
-are released through `main` as versions are tagged.
+FinLedger is pre-1.0 (`0.x`). The current supported release line is **`0.2.x`**
+(current tag: `v0.2.0`; first public tag was `v0.1.0`). Security fixes land on
+the active `develop` line and are released through `main` as versions are tagged.
 
 ## Reporting a vulnerability
 

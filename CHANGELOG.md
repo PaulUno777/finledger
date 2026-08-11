@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-11
+
+Integrator contract for external IdP day-0 (FL-181).
+
 ### Added
 
-- Integrator contract (FL-181): Token Profile (platform / tenant worker / parent admin),
+- Token Profile (platform / tenant worker / parent admin),
   `GET /api/v1/tenants/{tenantId}/accounts`, `POST /api/v1/platform/provision` recipes
   `STANDALONE` \| `AGGREGATOR`, ADR-018 parent-admin child account routes, claim/scope
   mapping, issuer aliases, machine TTL, JWKS readiness, CLI `jwt inspect` /
@@ -17,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) §5 / §8,
   [ADR-018](docs/adr/ADR-018-parent-admin-child-accounts.md),
   [ADR-019](docs/adr/ADR-019-external-operator-cli.md) Proposed)
+- Optional local Keycloak eval stack for `normal` + `issuer=external`
+  ([deploy/idp/](deploy/idp/), [auth-integration.md](docs/auth-integration.md))
 
 ### Fixed
 
@@ -25,8 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Document published Hub image as `unoteck/finledger:0.1.0` / `:latest` in README and
-  integration guide
+- Published Hub image pin is `unoteck/finledger:0.2.0` / `:latest`
 
 ## [0.1.0] - 2026-08-08
 
