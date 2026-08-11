@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Integrator contract (FL-181): Token Profile (platform / tenant worker / parent admin),
+  `GET /api/v1/tenants/{tenantId}/accounts`, `POST /api/v1/platform/provision` recipes
+  `STANDALONE` \| `AGGREGATOR`, ADR-018 parent-admin child account routes, claim/scope
+  mapping, issuer aliases, machine TTL, JWKS readiness, CLI `jwt inspect` /
+  `account list` / `platform provision`
+  ([INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) §5 / §8,
+  [ADR-018](docs/adr/ADR-018-parent-admin-child-accounts.md),
+  [ADR-019](docs/adr/ADR-019-external-operator-cli.md) Proposed)
+
+### Fixed
+
+- Empty or unreadable request body returns `400 INVALID_ARGUMENT` (was 500)
+- Empty / unreachable JWKS fails **readiness**, not process boot (liveness stays UP)
+
 ### Changed
 
 - Document published Hub image as `unoteck/finledger:0.1.0` / `:latest` in README and

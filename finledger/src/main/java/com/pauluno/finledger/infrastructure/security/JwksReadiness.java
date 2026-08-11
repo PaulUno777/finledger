@@ -5,22 +5,28 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * External issuer JWKS readiness: empty/unavailable JWKS fails readiness, not boot.
+ * Always registered so readiness groups can name {@code jwks}. External issuer:
+ * empty/unavailable JWKS fails readiness, not boot. Internal issuer: always UP.
  */
 @Component("jwks")
-@ConditionalOnProperty(prefix = "finledger.security", name = "issuer", havingValue = "external", matchIfMissing = true)
 public class JwksReadiness implements HealthIndicator {
 
     private static final Logger log = LoggerFactory.getLogger(JwksReadiness.class);
 
     private final AtomicBoolean ready = new AtomicBoolean(true);
     private final AtomicReference<String> detail = new AtomicReference<>("JWKS not fetched yet");
+
+    public JwksReadiness(@Value("${finledger.security.issuer:external}") String issuer) {
+        if (!"external".equalsIgnoreCase(issuer == null ? "" : issuer.trim())) {
+            markReady("issuer=" + issuer);
+        }
+    }
 
     public boolean isReady() {
         return ready.get();
