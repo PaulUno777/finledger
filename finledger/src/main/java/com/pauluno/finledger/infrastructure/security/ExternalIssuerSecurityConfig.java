@@ -21,7 +21,12 @@ import org.springframework.security.web.SecurityFilterChain;
 public class ExternalIssuerSecurityConfig {
 
     @Bean
-    SecurityFilterChain externalIssuerSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain externalIssuerSecurityFilterChain(
+            HttpSecurity http,
+            TenantHierarchyAccessChecker hierarchyAccessChecker,
+            FinledgerJwtAuthenticationConverter jwtAuthenticationConverter,
+            FinledgerSecurityProperties securityProperties
+    ) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .headers(Customizer.withDefaults())
@@ -34,6 +39,8 @@ public class ExternalIssuerSecurityConfig {
                         .hasAnyAuthority(
                                 LedgerAuthorities.SCOPE_LEDGER_ADMIN,
                                 LedgerAuthorities.SCOPE_PLATFORM_ADMIN)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/platform/provision")
+                        .hasAuthority(LedgerAuthorities.SCOPE_PLATFORM_ADMIN)
                         .requestMatchers(HttpMethod.GET, "/api/**")
                         .hasAnyAuthority(
                                 LedgerAuthorities.SCOPE_LEDGER_READ,
@@ -45,10 +52,15 @@ public class ExternalIssuerSecurityConfig {
                                 LedgerAuthorities.SCOPE_LEDGER_ADMIN)
                         .anyRequest().authenticated()
                 )
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
+                        jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
-                .addFilterAfter(new TenantClaimAuthorizationFilter(), BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(
+                        new TenantClaimAuthorizationFilter(
+                                hierarchyAccessChecker,
+                                securityProperties.getClaim().getTenantId()),
+                        BearerTokenAuthenticationFilter.class)
                 .build();
     }
 }

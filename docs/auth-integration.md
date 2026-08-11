@@ -6,21 +6,21 @@ the ledger can verify. The only question is **who signs it**.
 
 Operator axes (ADR-016):
 
-| Axis | Values |
-|------|--------|
-| Spring profile | `sandbox` \| `normal` |
-| Issuer | `internal` \| `external` |
+| Axis           | Values                   |
+| -------------- | ------------------------ |
+| Spring profile | `sandbox` \| `normal`    |
+| Issuer         | `internal` \| `external` |
 
 Design: [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md). End-to-end developer
 guide: [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md). Config: [configuration.md](configuration.md).
 
 ## Sandbox vs normal
 
-| Environment | Who issues the JWT? | Who refreshes? | What the ledger app developer does |
-|-------------|---------------------|----------------|------------------------------------|
-| **Sandbox** | FinLedger in-box issuer (ephemeral RSA keys each boot) | Re-mint via `POST /api/v1/auth/token` or `./bin/finledger-cli auth token` | Copy curls from `config/sandbox-ready.txt` — **no IdP** |
-| **Normal + external IdP** (default prod) | **Your IdP** (or BFF that obtains tokens from it) | **Your client / BFF / IdP** — **not** FinLedger CLI | Configure issuer/JWKS on FinLedger; put the **claim contract** below in tokens your stack already issues |
-| **Normal + internal issuer** (IdP-less CI) | FinLedger in-box issuer with **durable** PKCS#8 key + tenant-bound clients | Client/CLI re-mint with that client's `client_id` / `client_secret` | Configure `FINLEDGER_INTERNAL_SIGNING_KEY_*` + `finledger.security.internal.clients[]` |
+| Environment                                | Who issues the JWT?                                                        | Who refreshes?                                                            | What the ledger app developer does                                                                       |
+| ------------------------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Sandbox**                                | FinLedger in-box issuer (ephemeral RSA keys each boot)                     | Re-mint via `POST /api/v1/auth/token` or `./bin/finledger-cli auth token` | Copy curls from `config/sandbox-ready.txt` — **no IdP**                                                  |
+| **Normal + external IdP** (default prod)   | **Your IdP** (or BFF that obtains tokens from it)                          | **Your client / BFF / IdP** — **not** FinLedger CLI                       | Configure issuer/JWKS on FinLedger; put the **claim contract** below in tokens your stack already issues |
+| **Normal + internal issuer** (IdP-less CI) | FinLedger in-box issuer with **durable** PKCS#8 key + tenant-bound clients | Client/CLI re-mint with that client's `client_id` / `client_secret`       | Configure `FINLEDGER_INTERNAL_SIGNING_KEY_*` + `finledger.security.internal.clients[]`                   |
 
 ### Why mention CLI refresh at all?
 
@@ -42,28 +42,46 @@ FinLedger only **verifies** (signature, alg allowlist, `exp`, max TTL, scopes,
 
 ## Claim contract
 
-| Claim / header | Required | Notes |
-|----------------|----------|-------|
-| Signature alg | RS256 or ES256 | HS256 / `none` rejected |
-| `iss` | Yes | Must match configured issuer |
-| `exp` | Yes | Ledger also enforces `finledger.security.max-token-ttl` (default `15m`) |
-| `tenant_id` | Yes on tenant-scoped routes | UUID must equal `/api/v1/tenants/{tenantId}/…` |
-| Scope / authorities | Yes | `ledger:read`, `ledger:write`, and/or `ledger:admin` (Spring `SCOPE_*`) |
+| Claim / header      | Required                    | Notes                                                                                                                                                  |
+| ------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Signature alg       | RS256 or ES256              | HS256 / `none` rejected                                                                                                                                |
+| `iss`               | Yes                         | Must match configured issuer (or `finledger.security.issuer-aliases`)                                                                                  |
+| `exp`               | Yes                         | Ledger also enforces `finledger.security.max-token-ttl` (default `15m`)                                                                                |
+| `tenant_id`         | Yes on tenant-scoped routes | UUID must equal path (except create-tenant, `/platform/**`, and [ADR-018](adr/ADR-018-parent-admin-child-accounts.md) parent-admin **account** routes) |
+| Scope / authorities | Yes                         | `ledger:read`, `ledger:write`, `ledger:admin`; control-plane `platform:admin`                                                                          |
+
+Claim names and scope aliases are configurable (`finledger.security.claim.tenant-id`,
+`finledger.security.claim.scopes`, `finledger.security.scope-aliases`) — see
+[configuration.md](configuration.md).
+
+**Token Profile** (do not mix): `platform:admin` + **no** `tenant_id` for topology
+(`POST /tenants`, `POST /platform/provision`); `ledger:write` + `tenant_id` = path
+for money; `ledger:admin` + `tenant_id` = AGGREGATOR parent for **direct child
+accounts only** (ADR-018). Full table: [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) §5.
+
+**Enums:** `TenantType` = `STANDALONE` | `AGGREGATOR` | `SUB_MERCHANT`
+(`SUB_MERCHANT` requires `parentTenantId` → an `AGGREGATOR`). Rails
+`clearingAccountId` must be `RAIL_CLEARING`.
 
 ## BFF patterns (pick one)
 
-1. **Pass-through:** BFF forwards the user’s IdP access token unchanged.
-2. **Token exchange:** BFF obtains a ledger-audience token with FinLedger claims.
-3. **Machine callers:** IdP client-credentials → short-lived JWT with `tenant_id`.
+1. **Token exchange (preferred for day-0):** BFF obtains a ledger-audience token with
+   the Token Profile claims for that call (platform vs tenant worker).
+2. **Machine callers:** IdP client-credentials → short-lived JWT. Refresh **per
+   saga activity**, never a single bearer at pod start.
+3. **Pass-through (runtime only):** BFF forwards the user’s IdP access token
+   unchanged. This is **not** day-0 for STANDALONE or AGGREGATOR — one user token
+   cannot both lack `tenant_id` (create tenant) and carry `tenant_id` = child
+   (create wallets).
 
 **Wrong:** BFF strips auth and calls FinLedger open — **forbidden** by ADR-016.
 
 ## What FinLedger configures vs what you put in tokens
 
-| Side | Responsibility |
-|------|----------------|
-| **FinLedger** | Profile `normal`; `issuer=external`; `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` or JWKS; `max-token-ttl` |
-| **Your IdP / BFF** | Sign JWT (RS256/ES256); set `iss`, `exp`, `tenant_id`, scopes |
+| Side               | Responsibility                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| **FinLedger**      | Profile `normal`; `issuer=external`; `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` or JWKS; `max-token-ttl` |
+| **Your IdP / BFF** | Sign JWT (RS256/ES256); set `iss`, `exp`, `tenant_id`, scopes                                                        |
 
 Sandbox (`SPRING_PROFILES_ACTIVE=sandbox`): FinLedger sets `issuer=internal`, mints at
 `POST /api/v1/auth/token`, publishes JWKS at `GET /api/v1/auth/jwks`. Ephemeral keys —
@@ -84,7 +102,37 @@ body is rejected with **`400 tenant_id_not_allowed`** (never silently ignored).
 `platform:admin` and **no** `tenant_id` claim. Use it once to
 `POST /api/v1/tenants` with optional `id` matching your client binding. Second bootstrap
 → **410**. Blank secret → **404**. `platform:admin` does not authorize ledger
-data-plane routes.
+data-plane routes (accounts, rails, journals).
+
+## IdP snippet (Zitadel)
+
+Flatten space-separated `scope` and inject `tenant_id` for **tenant-worker**
+clients only. Do **not** inject `tenant_id` on the `platform:admin` client.
+
+```javascript
+// Zitadel Action (Complement token) — tenant worker / parent-admin clients
+function flattenAndTenant(ctx, api) {
+  const claims = ctx.v1.claims;
+  // Prefer an action-configured metadata key over hard-coding.
+  const tenantId = ctx.v1.user.getMetadata("tenant_id");
+  if (tenantId) {
+    api.v1.claims.setClaim("tenant_id", tenantId);
+  }
+  // FinLedger reads space-separated scope; flatten role arrays if you use them.
+}
+```
+
+Keycloak / Auth0 / Entra: map the same two claims (`tenant_id`, `scope` with
+`ledger:write` or `platform:admin`). Use `finledger.security.scope-aliases` if
+your IdP emits `ledger.write` instead of `ledger:write`.
+
+Local Keycloak realm import (eval only):
+[`deploy/idp/docker-compose.keycloak.yml`](../deploy/idp/docker-compose.keycloak.yml)
+— clients `finledger-platform` (`platform:admin`, no `tenant_id`) and
+`finledger-tenant` (`ledger:*` + hardcoded `tenant_id`). Scopes are in claim
+`ledger_scope` (Keycloak owns `scope`); set
+`FINLEDGER_SECURITY_CLAIM_SCOPES=ledger_scope`. Production Keycloak should
+source those from client attributes / user metadata the same way Zitadel does.
 
 ## CLI: when `auth token` applies
 

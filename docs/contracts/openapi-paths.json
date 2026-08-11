@@ -1,9 +1,17 @@
 {
-  "description" : "FL-160 OpenAPI path/operation inventory — regenerate intentionally when API changes",
+  "description" : "OpenAPI path/operation inventory — regenerate intentionally when API changes",
   "operations" : [ {
+    "path" : "/api/v1/platform/provision",
+    "method" : "POST",
+    "operationId" : "provision"
+  }, {
     "path" : "/api/v1/tenants",
     "method" : "POST",
     "operationId" : "create"
+  }, {
+    "path" : "/api/v1/tenants/{tenantId}/accounts",
+    "method" : "GET",
+    "operationId" : "list"
   }, {
     "path" : "/api/v1/tenants/{tenantId}/accounts",
     "method" : "POST",

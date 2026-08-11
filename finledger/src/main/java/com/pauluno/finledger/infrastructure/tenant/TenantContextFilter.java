@@ -40,10 +40,20 @@ public class TenantContextFilter extends OncePerRequestFilter {
                 } catch (IllegalArgumentException ignored) {
                     // Let controllers return 400 for malformed UUIDs.
                 }
+            } else if (isPlatformControlPlane(request.getRequestURI())) {
+                // No path tenant — RLS must not fail-closed on provision / bootstrap.
+                TenantContext.enableBypass();
             }
             filterChain.doFilter(request, response);
         } finally {
             TenantContext.clear();
         }
+    }
+
+    private static boolean isPlatformControlPlane(String path) {
+        return path != null && (path.equals("/api/v1/platform")
+                || path.startsWith("/api/v1/platform/")
+                || path.equals("/api/v1/platform-admins")
+                || path.startsWith("/api/v1/platform-admins/"));
     }
 }

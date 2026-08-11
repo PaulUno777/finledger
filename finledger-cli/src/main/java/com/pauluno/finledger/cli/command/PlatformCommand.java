@@ -22,13 +22,14 @@ import picocli.CommandLine.Model.CommandSpec;
 /**
  * Platform control-plane helpers (FL-158 one-shot bootstrap).
  */
-@Command(name = "platform", description = "Platform control-plane (bootstrap)", subcommands = {
-        PlatformBootstrapCommand.class
+@Command(name = "platform", description = "Platform control-plane (bootstrap, provision)", subcommands = {
+        PlatformBootstrapCommand.class,
+        PlatformProvisionCommand.class
 })
 public class PlatformCommand implements Runnable {
     @Override
     public void run() {
-        System.out.println("Specify a subcommand (bootstrap). Use --help for details.");
+        System.out.println("Specify a subcommand (bootstrap | provision). Use --help for details.");
     }
 }
 
@@ -84,5 +85,34 @@ class PlatformBootstrapCommand implements Callable<Integer> {
                     + "s — token stored in process memory; remint via auth token or export FINLEDGER_TOKEN");
         }
         return 0;
+    }
+}
+
+@Command(name = "provision", description = "POST /api/v1/platform/provision (platform:admin)")
+class PlatformProvisionCommand implements Callable<Integer> {
+
+    @Spec
+    CommandSpec spec;
+
+    @Option(names = "--recipe", required = true, description = "STANDALONE or AGGREGATOR")
+    String recipe;
+
+    @Option(names = "--name", description = "Root tenant display name")
+    String name;
+
+    @Option(names = "--tenant-id", description = "Optional client-supplied tenant UUID")
+    java.util.UUID tenantId;
+
+    @Option(names = "--currency", description = "ISO currency (default USD)")
+    String currency;
+
+    @Override
+    public Integer call() {
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("recipe", recipe);
+        body.put("name", name);
+        body.put("tenantId", tenantId);
+        body.put("currencyCode", currency);
+        return CliSupport.runMutating(spec, client -> client.post("/api/v1/platform/provision", body));
     }
 }

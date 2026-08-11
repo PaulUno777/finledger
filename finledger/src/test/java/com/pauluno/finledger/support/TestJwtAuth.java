@@ -52,6 +52,10 @@ public final class TestJwtAuth {
         return tenantJwt(tenantId, "ledger:read", "ledger:write");
     }
 
+    public static RequestPostProcessor tenantAdminJwt(UUID tenantId) {
+        return tenantJwt(tenantId, "ledger:read", "ledger:write", "ledger:admin");
+    }
+
     public static RequestPostProcessor tenantReadJwt(UUID tenantId) {
         return tenantJwt(tenantId, "ledger:read");
     }

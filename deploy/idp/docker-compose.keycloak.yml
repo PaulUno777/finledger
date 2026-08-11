@@ -1,0 +1,22 @@
+# Optional local IdP for normal + issuer=external (eval only).
+# Not part of the product Compose stack (ADR-012 — operators bring their own IdP).
+#
+#   docker compose -f deploy/idp/docker-compose.keycloak.yml up -d
+#   # realm import: finledger @ http://localhost:8180
+#
+# Zitadel: same claim contract (see docs/auth-integration.md). Do not inject
+# tenant_id on the platform:admin client.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.3.2
+    container_name: finledger-keycloak
+    command: start-dev --import-realm --http-port=8080
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro

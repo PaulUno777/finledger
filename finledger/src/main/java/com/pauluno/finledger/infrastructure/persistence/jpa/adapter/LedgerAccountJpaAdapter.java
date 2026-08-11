@@ -1,5 +1,6 @@
 package com.pauluno.finledger.infrastructure.persistence.jpa.adapter;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -58,5 +59,13 @@ public class LedgerAccountJpaAdapter implements LedgerAccountRepository {
     @Transactional(readOnly = true)
     public Optional<LedgerAccount> findByIdForTenant(UUID id, UUID tenantId) {
         return springData.findByIdAndTenantId(id, tenantId).map(LedgerAccountMapper::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LedgerAccount> listByTenant(UUID tenantId) {
+        return springData.findByTenantIdOrderByOwnerRefAscIdAsc(tenantId).stream()
+                .map(LedgerAccountMapper::toDomain)
+                .toList();
     }
 }
