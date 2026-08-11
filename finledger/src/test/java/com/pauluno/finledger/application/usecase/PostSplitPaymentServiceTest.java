@@ -239,6 +239,11 @@ class PostSplitPaymentServiceTest {
         public Optional<LedgerAccount> findByIdForTenant(UUID id, UUID tenantId) {
             return findById(id).filter(a -> a.tenantId().equals(tenantId));
         }
+
+        @Override
+        public List<LedgerAccount> listByTenant(UUID tenantId) {
+            return accounts.values().stream().filter(a -> a.tenantId().equals(tenantId)).toList();
+        }
     }
 
     private static final class InMemoryAccountBalanceRepository implements AccountBalanceRepository {

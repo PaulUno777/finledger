@@ -15,6 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import com.pauluno.finledger.infrastructure.security.LedgerAuthorities;
 import com.pauluno.finledger.infrastructure.security.PublicSecurityPaths;
 import com.pauluno.finledger.infrastructure.security.TenantClaimAuthorizationFilter;
+import com.pauluno.finledger.infrastructure.security.TenantHierarchyAccessChecker;
 
 /**
  * JWT resource server backed by the in-box issuer (sandbox ephemeral or normal persistent).
@@ -25,7 +26,12 @@ import com.pauluno.finledger.infrastructure.security.TenantClaimAuthorizationFil
 public class InternalIssuerSecurityConfig {
 
     @Bean
-    SecurityFilterChain internalIssuerSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain internalIssuerSecurityFilterChain(
+            HttpSecurity http,
+            TenantHierarchyAccessChecker hierarchyAccessChecker,
+            com.pauluno.finledger.infrastructure.security.FinledgerJwtAuthenticationConverter jwtAuthenticationConverter,
+            com.pauluno.finledger.infrastructure.security.FinledgerSecurityProperties securityProperties
+    ) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .headers(Customizer.withDefaults())
@@ -38,6 +44,8 @@ public class InternalIssuerSecurityConfig {
                         .hasAnyAuthority(
                                 LedgerAuthorities.SCOPE_LEDGER_ADMIN,
                                 LedgerAuthorities.SCOPE_PLATFORM_ADMIN)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/platform/provision")
+                        .hasAuthority(LedgerAuthorities.SCOPE_PLATFORM_ADMIN)
                         .requestMatchers(HttpMethod.GET, "/api/**")
                         .hasAnyAuthority(
                                 LedgerAuthorities.SCOPE_LEDGER_READ,
@@ -49,10 +57,15 @@ public class InternalIssuerSecurityConfig {
                                 LedgerAuthorities.SCOPE_LEDGER_ADMIN)
                         .anyRequest().authenticated()
                 )
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt ->
+                        jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)))
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
-                        .addFilterAfter(new TenantClaimAuthorizationFilter(), BearerTokenAuthenticationFilter.class)
+                        .addFilterAfter(
+                                new TenantClaimAuthorizationFilter(
+                                        hierarchyAccessChecker,
+                                        securityProperties.getClaim().getTenantId()),
+                                BearerTokenAuthenticationFilter.class)
                 .build();
     }
 }

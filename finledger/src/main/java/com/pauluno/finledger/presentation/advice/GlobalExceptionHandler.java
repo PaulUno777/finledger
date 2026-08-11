@@ -7,6 +7,8 @@ import java.util.Map;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -59,6 +61,38 @@ public class GlobalExceptionHandler {
                 null);
 
         return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest request) {
+
+        log.warn("Unreadable request body: {}", ex.getMessage());
+
+        ErrorResponse response = buildErrorResponse(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_ARGUMENT",
+                "Request body is required and must be valid JSON",
+                request.getRequestURI(),
+                null);
+
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex,
+            HttpServletRequest request) {
+
+        ErrorResponse response = buildErrorResponse(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "METHOD_NOT_ALLOWED",
+                ex.getMessage(),
+                request.getRequestURI(),
+                null);
+
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

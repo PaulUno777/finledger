@@ -1,5 +1,6 @@
 package com.pauluno.finledger.application.port.out;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -12,4 +13,6 @@ public interface LedgerAccountRepository {
     Optional<LedgerAccount> findById(UUID id);
 
     Optional<LedgerAccount> findByIdForTenant(UUID id, UUID tenantId);
+
+    List<LedgerAccount> listByTenant(UUID tenantId);
 }

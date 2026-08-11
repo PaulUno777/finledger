@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -26,5 +28,20 @@ class GlobalExceptionHandlerTest {
         assertNotNull(response.getBody());
         assertEquals("NOT_FOUND", response.getBody().code());
         assertEquals("/actuator/health", response.getBody().path());
+    }
+
+    @Test
+    void should_map_unreadable_body_to_400_invalid_argument() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        HttpMessageNotReadableException ex = new HttpMessageNotReadableException(
+                "Required request body is missing",
+                new MockHttpInputMessage(new byte[0]));
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/tenants/t/accounts");
+
+        ResponseEntity<ErrorResponse> response = handler.handleUnreadableBody(ex, request);
+
+        assertEquals(400, response.getStatusCode().value());
+        assertNotNull(response.getBody());
+        assertEquals("INVALID_ARGUMENT", response.getBody().code());
     }
 }

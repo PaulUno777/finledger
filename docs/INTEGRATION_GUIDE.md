@@ -11,17 +11,18 @@ and a terminal.
 up → get a TOKEN → call the API with that TOKEN
 ```
 
-| Who / when | Start here |
-| ---------- | ---------- |
-| Local demo / onboarding | §3 sandbox |
-| Backend without an IdP yet | §3 normal + internal |
+| Who / when                   | Start here                     |
+| ---------------------------- | ------------------------------ |
+| Local demo / onboarding      | §3 sandbox                     |
+| Backend without an IdP yet   | §3 normal + internal           |
 | Staging / prod with your IdP | §3 normal + external → §5 → §7 |
-| Day-2 ops (any env) | §8–§10 |
+| Day-2 ops (any env)          | §8–§10                         |
 
 The CLI prompts on a TTY for secrets and missing fields. In CI/pipes, pass flags or env.
 
 Related: [configuration.md](configuration.md) · [auth-integration.md](auth-integration.md) ·
-[ADR-015](adr/ADR-015-operational-model.md) · [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)
+[ADR-015](adr/ADR-015-operational-model.md) · [ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md) ·
+[ADR-018](adr/ADR-018-parent-admin-child-accounts.md)
 
 ---
 
@@ -39,10 +40,10 @@ trail. Your stack owns UX, KYC, PSP rails, and (in production) JWT **issuance**.
 
 **Distribution** (when you leave local Compose):
 
-| Artifact | Role | Liability |
-| -------- | ---- | --------- |
-| Hub image `unoteck/finledger:<semver>` | Canonical deployable | Full CI + multi-arch release bar ([ADR-012](adr/ADR-012-docker-distribution.md)) |
-| Server fat JAR | Escape hatch (non-container hosts) | Weaker guarantee bar ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md)) |
+| Artifact                               | Role                               | Liability                                                                        |
+| -------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------- |
+| Hub image `unoteck/finledger:<semver>` | Canonical deployable               | Full CI + multi-arch release bar ([ADR-012](adr/ADR-012-docker-distribution.md)) |
+| Server fat JAR                         | Escape hatch (non-container hosts) | Weaker guarantee bar ([ADR-016](adr/ADR-016-runtime-profiles-jwt-issuer.md))     |
 
 **Hard rule:** never run profile `sandbox` with `FINLEDGER_ENV=production` (or `prod`).
 Boot refuses.
@@ -201,7 +202,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 ### 3.3 Call the API (same for sandbox and normal)
 
-OpenAPI (dev): http://localhost:8080/swagger-ui.html — click **Authorize**, paste Bearer.
+OpenAPI (dev): <http://localhost:8080/swagger-ui.html> — click **Authorize**, paste Bearer.
 
 **Sandbox `simple` pack** (stable IDs):
 
@@ -259,11 +260,14 @@ Stop (keeps Postgres data):
 
 ## 4. Sandbox scenario packs
 
-| Scenario           | Labels                       | Seed                                 |
-| ------------------ | ---------------------------- | ------------------------------------ |
-| `simple` (default) | EcoPay                       | Standalone + two USD wallets         |
-| `aggregator`       | EcoPay Network + Send Tunnel | Aggregator + sub-merchant + pool/fee |
-| `remittance`       | Send Tunnel Remit            | USD + EUR wallets                    |
+Sandbox packs are **eval seeds**, not extra tenant types. They map 1:1 onto the
+enums in §5.2:
+
+| Scenario           | Labels                       | TenantType(s)                         | Seed                                 |
+| ------------------ | ---------------------------- | ------------------------------------- | ------------------------------------ |
+| `simple` (default) | EcoPay                       | `STANDALONE`                          | Standalone + two USD wallets         |
+| `aggregator`       | EcoPay Network + Send Tunnel | `AGGREGATOR` + `SUB_MERCHANT`         | Aggregator + sub-merchant + pool/fee |
+| `remittance`       | Send Tunnel Remit            | `STANDALONE` (multi-currency wallets) | USD + EUR wallets                    |
 
 ```bash
 ./bin/finledger-cli sandbox init --scenario aggregator   # or omit flag and pick on TTY
@@ -286,17 +290,67 @@ client record (`400 tenant_id_not_allowed` if you try).
 FinLedger only **verifies** JWTs. Your IdP or BFF must **issue**. Full BFF patterns:
 [auth-integration.md](auth-integration.md).
 
-| Claim / rule  | Detail                                                                      |
-| ------------- | --------------------------------------------------------------------------- |
-| Algorithms    | `RS256` or `ES256` only                                                     |
-| `iss`         | Matches configured issuer                                                   |
-| `exp`         | Required; ledger also caps TTL (default 15m)                                |
-| `tenant_id`   | Must equal `/api/v1/tenants/{tenantId}/…`                                   |
-| Scopes        | `ledger:read`, `ledger:write`, and/or `ledger:admin`                        |
-| Control-plane | `platform:admin` — bootstrap / create tenant only; **no** `tenant_id` claim |
+### 5.1 Token Profile (do not mix clients)
 
-Allowed BFF patterns: pass-through user token, token exchange, or machine
-client-credentials. Forbidden: strip auth and call FinLedger open.
+Two (or three) IdP clients. Never use one JWT for both control-plane and money.
+
+| Client               | Scopes                                | `tenant_id`             | Allowed                                                                                                                                                                                                                                                       |
+| -------------------- | ------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Platform**         | `platform:admin`                      | **absent**              | `POST /api/v1/tenants`; `POST /api/v1/platform/bootstrap` (IdP-less only); `POST /api/v1/platform/provision` (root recipes). Optional body `id` on create-tenant.                                                                                             |
+| **Tenant worker**    | `ledger:write` (and/or `ledger:read`) | **= path tenant**       | Accounts, rails, settle, refunds, journals, splits, fee/fx config on **that** tenant.                                                                                                                                                                         |
+| **Parent admin (C)** | `ledger:admin`                        | **= AGGREGATOR parent** | Same as tenant worker on the parent **plus** `GET/POST …/tenants/{child}/accounts` (and get/balance) for a **direct** `SUB_MERCHANT` child only ([ADR-018](adr/ADR-018-parent-admin-child-accounts.md)). Money on the child still needs a child-scoped token. |
+
+`POST /api/v1/tenants` also accepts `ledger:admin` **without** a `tenant_id` (same
+control-plane skip as `platform:admin`). Prefer `platform:admin` for topology;
+`ledger:admin` without `tenant_id` is for IdP principals that already own that scope.
+A `tenant_id` claim on a control-plane token is **ignored** on `POST /tenants` — do
+not treat that as “this token may write any tenant.”
+
+`platform:admin` never authorizes accounts, rails, journals, or other data-plane
+routes.
+
+### 5.2 Enums and hierarchy
+
+**`TenantType`:** `STANDALONE` \| `AGGREGATOR` \| `SUB_MERCHANT`.
+
+- `STANDALONE` and `AGGREGATOR` are **roots** — no `parentTenantId` (`422 INVALID_TENANT_HIERARCHY` if set).
+- `SUB_MERCHANT` **requires** `parentTenantId` pointing at an existing `AGGREGATOR`.
+
+**`AccountType`:** `MERCHANT_WALLET`, `AGGREGATOR_POOL`, `RAIL_CLEARING`,
+`SUSPENSE_HOLD`, `FEE_PLATFORM_REVENUE`, `FEE_INTERCHANGE_COST`,
+`FEE_AGGREGATOR_MARKUP`, `RESERVE_HOLD`, `TAX_VAT`.
+
+### 5.3 Rails account rules
+
+`POST /api/v1/tenants/{tenantId}/rails/payments`:
+
+- `clearingAccountId` **must** be type `RAIL_CLEARING` (`422 INVALID_CLEARING_ACCOUNT` otherwise).
+- `counterpartyAccountId` must exist in the same tenant (typically `MERCHANT_WALLET` or a fee/pool account).
+- Empty / missing JSON body → `400 INVALID_ARGUMENT` (not 500).
+- Settle: `POST …/rails/payments/{railReference}/settle` (empty body is allowed when the path identifies the instruction).
+
+`GET /api/v1/tenants/{tenantId}/accounts` lists accounts for that tenant (recover IDs after create).
+
+### 5.4 Claim / TTL rules
+
+| Claim / rule | Detail                                                                                                                                                      |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Algorithms   | `RS256` or `ES256` only                                                                                                                                     |
+| `iss`        | Must equal configured issuer (`ISSUER_URI`). If discovery `issuer` ≠ JWT `iss`, set `jwk-set-uri` independently and/or `finledger.security.issuer-aliases`. |
+| `exp`        | Required; ledger also caps TTL (default **15m** for user/pass-through)                                                                                      |
+| Machine TTL  | Tokens with `token_use=machine` or `azp` on `finledger.security.machine-azp-allowlist` may use `finledger.security.max-token-ttl-machine` (default **1h**)  |
+| `tenant_id`  | Must equal `/api/v1/tenants/{tenantId}/…` except create-tenant, `/platform/**`, and ADR-018 parent-admin **account** routes                                 |
+| Scopes       | `ledger:read`, `ledger:write`, `ledger:admin`; control-plane `platform:admin`                                                                               |
+
+**Machine tokens:** refresh **before each saga / Temporal activity**. Do **not** inject
+a single bearer at pod start — a 15m (or even 1h) token will expire mid-park and later
+calls return `401`. CLI silent remint is **in-box issuer only**.
+
+Allowed BFF patterns: **token exchange** or **machine** client-credentials for day-0
+and workers. **Pass-through** (forward the user’s IdP access token unchanged) is
+**runtime / interactive only** — it is **not** the day-0 path for STANDALONE or
+AGGREGATOR provisioning (one user JWT cannot be both “no `tenant_id`” and
+“`tenant_id` = child”). Forbidden: strip auth and call FinLedger open.
 
 Production day-0: `issuer=external`, leave `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET` unset.
 
@@ -340,9 +394,11 @@ FinLedger (Hub image) → Your Postgres (FORCE RLS)
 ### 7.1 Checklist
 
 1. Pull `unoteck/finledger:<semver>` (current: `0.1.0`; also `:latest` after each release tag).
+
    ```bash
    docker pull unoteck/finledger:0.1.0
    ```
+
 2. `SPRING_PROFILES_ACTIVE=normal`, `FINLEDGER_ENV=production`, `FINLEDGER_SECURITY_ISSUER=external`.
 3. Point OIDC issuer/JWKS at your IdP; enforce §5.
 4. Terminate **TLS 1.3** at the edge; keep management port **`:8081` private** (ClusterIP / no public LB).
@@ -350,28 +406,30 @@ FinLedger (Hub image) → Your Postgres (FORCE RLS)
    (FORCE RLS). Dev Compose uses `finledger` (Flyway) + `finledger_app` (app) — mirror that split.
 6. Secrets via env / mounted config / secret store — **never** bake into the image.
 7. Disable Springdoc in prod (`SPRINGDOC_API_DOCS_ENABLED=false`, `SPRINGDOC_SWAGGER_UI_ENABLED=false`).
-8. Provision first tenants with a `ledger:admin` JWT from your IdP (not platform bootstrap).
-9. Every mutating call sends `Idempotency-Key`; design clients for outbox lag and token
-   refresh **before** `exp` (default max TTL 15m).
+8. Provision first **root** tenants with a **`platform:admin`** JWT from your IdP
+   (`POST /tenants` or `POST /platform/provision`) — **no** `tenant_id` claim. Do **not**
+   use `POST /platform/bootstrap` in production (secret unset).
+9. Every mutating call sends `Idempotency-Key`. Refresh machine JWTs **per activity**
+   before `exp` (default max TTL 15m; optional machine cap 1h — §5.4).
 10. Wire Prometheus scrape on `:8081/actuator/prometheus`; optional OTLP via
     `OTEL_EXPORTER_OTLP_ENDPOINT`.
 
 ### 7.2 Required production environment
 
-| Variable | Required | Notes |
-| -------- | -------- | ----- |
-| `SPRING_PROFILES_ACTIVE` | yes | `normal` |
-| `FINLEDGER_ENV` | yes | `production` |
-| `FINLEDGER_SECURITY_ISSUER` | yes | `external` |
-| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` | yes* | or `…_JWK_SET_URI` |
-| `DB_URL` | yes | JDBC URL |
-| `DB_USERNAME` / `DB_PASSWORD` | yes | Non-superuser app role |
-| `SPRING_FLYWAY_USER` / `SPRING_FLYWAY_PASSWORD` | typical | Migrator (often elevated) |
-| `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET` | leave unset | Prod uses IdP admins |
-| `SPRINGDOC_API_DOCS_ENABLED` / `SPRINGDOC_SWAGGER_UI_ENABLED` | recommended `false` | |
-| `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET` | if rails | HMAC for inbound settlement |
-| `FINLEDGER_RATE_LIMIT_*` | optional | See §8 |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | optional | Traces |
+| Variable                                                      | Required            | Notes                       |
+| ------------------------------------------------------------- | ------------------- | --------------------------- |
+| `SPRING_PROFILES_ACTIVE`                                      | yes                 | `normal`                    |
+| `FINLEDGER_ENV`                                               | yes                 | `production`                |
+| `FINLEDGER_SECURITY_ISSUER`                                   | yes                 | `external`                  |
+| `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`        | yes\*               | or `…_JWK_SET_URI`          |
+| `DB_URL`                                                      | yes                 | JDBC URL                    |
+| `DB_USERNAME` / `DB_PASSWORD`                                 | yes                 | Non-superuser app role      |
+| `SPRING_FLYWAY_USER` / `SPRING_FLYWAY_PASSWORD`               | typical             | Migrator (often elevated)   |
+| `FINLEDGER_PLATFORM_BOOTSTRAP_SECRET`                         | leave unset         | Prod uses IdP admins        |
+| `SPRINGDOC_API_DOCS_ENABLED` / `SPRINGDOC_SWAGGER_UI_ENABLED` | recommended `false` |                             |
+| `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET`                          | if rails            | HMAC for inbound settlement |
+| `FINLEDGER_RATE_LIMIT_*`                                      | optional            | See §8                      |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`                                 | optional            | Traces                      |
 
 Compose eval of the same shape: `docker compose --profile with-app up -d` after filling
 `.env` for external OIDC (see §3.1).
@@ -397,7 +455,7 @@ spec:
     spec:
       containers:
         - name: finledger
-          image: unoteck/finledger:0.1.0   # pin semver; avoid :latest in prod
+          image: unoteck/finledger:0.1.0 # pin semver; avoid :latest in prod
           ports:
             - name: http
               containerPort: 8080
@@ -459,41 +517,64 @@ contract as §7.2; health still on `MANAGEMENT_SERVER_PORT` (default 8081).
 
 ### Day-0
 
-1. Deploy image / K8s with §7.2 env and healthy probes.
-2. Create a `ledger:admin` principal in your IdP (scopes + no mistaken `tenant_id` on
-   control-plane-only tokens if you use platform-style roles).
-3. `POST /api/v1/tenants` (or `./bin/finledger-cli tenant create`) with that admin JWT.
-4. Issue tenant-scoped machine/user tokens (`tenant_id` + `ledger:write`) for BFF/workers.
-5. Post a dry-run journal with `Idempotency-Key`; confirm `201` and audit/outbox paths.
+1. Deploy image / K8s with §7.2 env and healthy probes. Point `ISSUER_URI` at the
+   JWT `iss` (or set `jwk-set-uri` if discovery issuer diverges).
+2. Create **two** IdP clients (Token Profile §5.1). Do not reuse one token for both.
+
+**STANDALONE (two tokens — no hierarchy / no ADR-018):**
+
+1. **Token A** — `platform:admin`, no `tenant_id` → `POST /api/v1/tenants` with
+   `type=STANDALONE` (no `parentTenantId`), **or** `POST /api/v1/platform/provision`
+   `{ "recipe": "STANDALONE", … }`.
+2. **Token B** — `ledger:write` + `tenant_id` = that tenant → `RAIL_CLEARING`,
+   wallets, fee-config, then rails / journals / refunds.
+
+**AGGREGATOR + SUB_MERCHANT (Token B provisions child wallets — ADR-018):**
+
+1. **Token A** — `platform:admin`, no `tenant_id` → create `AGGREGATOR`, then
+   `SUB_MERCHANT` with `parentTenantId` = aggregator (or provision recipe
+   `AGGREGATOR` for the root only — children stay `POST /tenants`).
+2. **Token B** — `ledger:admin` + `tenant_id` = aggregator → parent
+   `RAIL_CLEARING` / pool / fee accounts **and** child `MERCHANT_WALLET`s under
+   `/tenants/{subMerchantId}/accounts`.
+3. **Token C** — `ledger:write` + `tenant_id` = sub-merchant → rails, settle,
+   refunds, journals on the child. Parent Token B **cannot** call money paths on
+   the child.
+
+CLI: `./bin/finledger-cli jwt inspect --token "$FINLEDGER_TOKEN"` prints which
+profile a token matches.
 
 ### Day-2
 
-| Concern | What to do |
-| ------- | ---------- |
-| Token refresh | Refresh IdP tokens before `exp`; CLI silent remint is **in-box issuer only** |
-| Outbox lag | Consumers must tolerate delay/duplication; publish is transactional outbox |
-| Rate limit | In-memory Bucket4j on `/api/v1/**` — `FINLEDGER_RATE_LIMIT_ENABLED` (default `true`), `…_CAPACITY` / `…_REFILL_PER_SECOND` (defaults `120` / `60`). Multi-replica = per-pod; Redis deferred |
-| Rail webhooks | `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET`; anti-replay skew `FINLEDGER_RAIL_WEBHOOK_MAX_SKEW_SECONDS` (default `300`) |
-| Observability | Prometheus `:8081/actuator/prometheus`; optional OTLP; Compose profile `observability` for local Grafana |
-| Fraud (optional) | `FINLEDGER_FRAUD_ENABLED=true` — separate bounded context; fail-closed/open per tenant config |
-| Restarts | Named Postgres volume / PVC — `compose restart` / rolling update must not wipe data |
-| CLI | `doctor` / `health` / `ready` / `status` / `logs` against running stack (§9) |
+| Concern          | What to do                                                                                                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Token refresh    | Refresh IdP tokens **before each long-running saga activity**, not once at pod start. CLI silent remint is **in-box issuer only**.                                                                                                    |
+| Outbox lag       | Consumers must tolerate delay/duplication; publish is transactional outbox                                                                                                                                                            |
+| Rate limit       | In-memory Bucket4j on `/api/v1/**` — `FINLEDGER_RATE_LIMIT_ENABLED` (default `true`), `…_CAPACITY` / `…_REFILL_PER_SECOND` (defaults `120` / `60`). **Per pod, not cluster-wide** — each replica has its own bucket (Redis deferred). |
+| Rail webhooks    | `FINLEDGER_RAIL_WEBHOOK_HMAC_SECRET`; anti-replay skew `FINLEDGER_RAIL_WEBHOOK_MAX_SKEW_SECONDS` (default `300`)                                                                                                                      |
+| Observability    | Prometheus `:8081/actuator/prometheus`; optional OTLP; Compose profile `observability` for local Grafana                                                                                                                              |
+| Fraud (optional) | `FINLEDGER_FRAUD_ENABLED=true` — separate bounded context; fail-closed/open per tenant config                                                                                                                                         |
+| Restarts         | Named Postgres volume / PVC — `compose restart` / rolling update must not wipe data                                                                                                                                                   |
+| CLI              | `doctor` / `health` / `ready` / `status` / `logs` / `jwt inspect` against running stack (§9)                                                                                                                                          |
 
 ---
 
 ## 9. Failure modes
 
-| Situation                                  | Behavior                      |
-| ------------------------------------------ | ----------------------------- |
-| Same idempotency key + same body           | Replay                        |
-| Same key + different body                  | `409`                         |
-| Bad / missing JWT                          | `401`                         |
-| `tenant_id` ≠ path                         | `403` `TENANT_CLAIM_MISMATCH` |
-| Rate limit exceeded                        | `429` `RATE_LIMITED`          |
-| Sandbox + production env                   | Boot failure                  |
-| Bootstrap already claimed                  | `410`                         |
-| Mint body `tenant_id` on persistent issuer | `400` `tenant_id_not_allowed` |
-| Unmapped / disabled route (e.g. sandbox bootstrap, `:8080/actuator`) | `404` `NOT_FOUND` |
+| Situation                                                            | Behavior                         |
+| -------------------------------------------------------------------- | -------------------------------- |
+| Same idempotency key + same body                                     | Replay                           |
+| Same key + different body                                            | `409`                            |
+| Bad / missing JWT                                                    | `401`                            |
+| `tenant_id` ≠ path (and not ADR-018 parent-admin account route)      | `403` `TENANT_CLAIM_MISMATCH`    |
+| Wallet used as `clearingAccountId`                                   | `422` `INVALID_CLEARING_ACCOUNT` |
+| Unknown `TenantType` / `AccountType`                                 | `400` `INVALID_ARGUMENT`         |
+| `SUB_MERCHANT` without parent / parent not `AGGREGATOR`              | `422` `INVALID_TENANT_HIERARCHY` |
+| Rate limit exceeded                                                  | `429` `RATE_LIMITED`             |
+| Sandbox + production env                                             | Boot failure                     |
+| Bootstrap already claimed                                            | `410`                            |
+| Mint body `tenant_id` on persistent issuer                           | `400` `tenant_id_not_allowed`    |
+| Unmapped / disabled route (e.g. sandbox bootstrap, `:8080/actuator`) | `404` `NOT_FOUND`                |
 
 ---
 
@@ -507,6 +588,7 @@ contract as §7.2; health still on `MANAGEMENT_SERVER_PORT` (default 8081).
 ./bin/finledger-cli status
 ./bin/finledger-cli logs -f --service app-sandbox
 ./bin/finledger-cli auth token      # prompts for secret on TTY; stores session for remint
+./bin/finledger-cli jwt inspect --token "$FINLEDGER_TOKEN"
 ./bin/finledger-cli platform bootstrap
 ./bin/finledger-cli tenant create --dry-run   # print request; no HTTP
 ./bin/finledger-cli down            # preserves Postgres data

@@ -19,7 +19,10 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
  */
 @Configuration
 @ConditionalOnProperty(prefix = "finledger.security", name = "issuer", havingValue = "internal")
-@EnableConfigurationProperties(InternalIssuerProperties.class)
+@EnableConfigurationProperties({
+        InternalIssuerProperties.class,
+        com.pauluno.finledger.infrastructure.security.FinledgerSecurityProperties.class
+})
 public class InternalIssuerConfiguration {
 
     @Bean
