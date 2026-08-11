@@ -137,10 +137,38 @@ Do **not** reuse a host-relative PEM path (`./config/...`) inside `with-app` —
 container will not resolve it. Compose defaults remain `issuer=external` /
 `FINLEDGER_ENV=production` when those keys are unset (OIDC path below).
 
-**Normal + your IdP:** set `FINLEDGER_SECURITY_ISSUER=external` and
-`SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://your-idp/...` — skip
-§3.2 bootstrap; put an IdP token in `FINLEDGER_TOKEN` and jump to §3.3.
-`docker compose --profile with-app up -d --build` is the usual path.
+**Normal + your IdP (prod-like):** `FINLEDGER_SECURITY_ISSUER=external` and
+`SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI` pointing at **Zitadel or
+Keycloak** (or any OIDC IdP). Skip §3.2 bootstrap — mint in the IdP, export
+`FINLEDGER_TOKEN`, jump to §3.3. Same Token Profile as §5.1: one
+`platform:admin` client (**no** `tenant_id`) and a separate tenant-worker client
+(`ledger:*` + `tenant_id`). Zitadel action stub: [auth-integration.md](auth-integration.md).
+
+Local Keycloak eval (optional — **not** part of product Compose, ADR-012):
+
+```bash
+docker compose -f deploy/idp/docker-compose.keycloak.yml up -d
+# Admin UI http://localhost:8180  (admin / admin) — realm `finledger` imported
+
+# FinLedger (host JVM; Kind often owns :8080/:8081 — use other ports)
+SPRING_PROFILES_ACTIVE=normal \
+FINLEDGER_ENV=local \
+FINLEDGER_SECURITY_ISSUER=external \
+SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8180/realms/finledger \
+FINLEDGER_SECURITY_CLAIM_SCOPES=ledger_scope \
+SERVER_PORT=18080 MANAGEMENT_SERVER_PORT=18081 \
+# … datasource env …
+java -jar finledger/target/finledger-0.1.0.jar
+
+# Platform token (no tenant_id) then tenant worker
+curl -s http://localhost:8180/realms/finledger/protocol/openid-connect/token \
+  -d grant_type=client_credentials \
+  -d client_id=finledger-platform -d client_secret=platform-dev-secret
+# Eval secrets in deploy/idp/keycloak/ — never reuse in production
+```
+
+`docker compose --profile with-app up -d --build` is the usual path once
+`ISSUER_URI` is your real IdP.
 
 Health (management port **8081** only — `:8080/actuator/health` is not mapped → **404**):
 

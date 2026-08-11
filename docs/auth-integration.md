@@ -126,6 +126,14 @@ Keycloak / Auth0 / Entra: map the same two claims (`tenant_id`, `scope` with
 `ledger:write` or `platform:admin`). Use `finledger.security.scope-aliases` if
 your IdP emits `ledger.write` instead of `ledger:write`.
 
+Local Keycloak realm import (eval only):
+[`deploy/idp/docker-compose.keycloak.yml`](../deploy/idp/docker-compose.keycloak.yml)
+— clients `finledger-platform` (`platform:admin`, no `tenant_id`) and
+`finledger-tenant` (`ledger:*` + hardcoded `tenant_id`). Scopes are in claim
+`ledger_scope` (Keycloak owns `scope`); set
+`FINLEDGER_SECURITY_CLAIM_SCOPES=ledger_scope`. Production Keycloak should
+source those from client attributes / user metadata the same way Zitadel does.
+
 ## CLI: when `auth token` applies
 
 ```bash
