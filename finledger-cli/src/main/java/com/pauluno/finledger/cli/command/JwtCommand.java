@@ -57,6 +57,9 @@ class JwtInspectCommand implements Callable<Integer> {
         String alg = header.path("alg").asText("");
         String iss = payload.path("iss").asText("");
         String scopes = payload.path("scope").asText(payload.path("scp").asText(""));
+        if (scopes.isBlank()) {
+            scopes = payload.path("ledger_scope").asText("");
+        }
         String tenantId = payload.path("tenant_id").asText("");
         long exp = payload.path("exp").asLong(0);
         long iat = payload.path("iat").asLong(0);
