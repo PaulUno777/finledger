@@ -86,7 +86,7 @@ Health: `GET http://localhost:8081/actuator/health` (container) or
 Published images ([Docker Hub](https://hub.docker.com/r/unoteck/finledger)):
 
 ```bash
-docker pull unoteck/finledger:0.1.0
+docker pull unoteck/finledger:0.2.0
 # or: docker pull unoteck/finledger:latest
 ```
 

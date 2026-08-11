@@ -26,7 +26,7 @@ import picocli.CommandLine.Mixin;
 @Command(
         name = "finledger-cli",
         mixinStandardHelpOptions = true,
-        version = "finledger-cli 0.1.0",
+        version = "finledger-cli 0.2.0",
         description = "Provision FinLedger via /api/v1 and run local Compose ops",
         subcommands = {
                 TenantCommand.class,
